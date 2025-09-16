@@ -243,6 +243,10 @@ class PdfToMarkdownConverter:
 =======
                     return f"✗ {info.get("file")} → {exc}\n{tb}"
 >>>>>>> eb209d6 (initial commit)
+                    return f"✗ {info.get('file')} → {exc}\n{tb}"
+=======
+                    return f"✗ {info.get("file")} → {exc}\n{tb}"
+>>>>>>> eb209d6 (initial commit)
                     #return f"✗ {md_filename} → {exc}\n{tb}"
                 
                 #time.sleep(2 ** attempt)
