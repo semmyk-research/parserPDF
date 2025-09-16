@@ -7,10 +7,10 @@ md_to_pdf*
 html_to_md*
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 # /logs
 logs/
 
-=======
 >>>>>>> 0fd441a (initial commit)
 # Byte-compiled / optimized / DLL files
 __pycache__/
