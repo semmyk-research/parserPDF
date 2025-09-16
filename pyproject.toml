@@ -1,0 +1,9 @@
+[project]
+#name = "parserpdf"
+name = "parser2md"
+version = "0.1.0"
+description = "PDF & HTML parser to markdown"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+owner "research-semmyk"
