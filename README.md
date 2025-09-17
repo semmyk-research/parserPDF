@@ -1,17 +1,23 @@
 yaml
 ---
-#[project]
-#name: "parserpdf"
-name: "parser2md"
+title: "parser2md" - PDF & HTML parser to markdown
+sdk: gradio
+command: python main.py
+---
+
+[project]
+---
+name: "parserpdf" - PDF & HTML parser to markdown
 #title: "parserPDF"
 title: "parser2md"
+sdk: gradio
+#sdk_version: 5.0.1
+command: python main.py
+app_file: main.py
 emoji: 📝
 colorFrom: yellow
 colorTo: purple
-sdk: gradio
-sdk_version: 5.0.1
-command: python main.py
-app_file: main.py
+name: "parser2md"
 pinned: false
 license: mit
 short_description: 'PDF & HTML parser to markdown'
