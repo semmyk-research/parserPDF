@@ -1,3 +1,4 @@
+yaml
 ---
 #[project]
 #name: "parserpdf"
@@ -9,6 +10,7 @@ colorFrom: yellow
 colorTo: purple
 sdk: gradio
 sdk_version: 5.0.1
+command: python main.py
 app_file: main.py
 pinned: false
 license: mit
@@ -19,6 +21,7 @@ requires-python: ">=3.12"
 dependencies: []
 owner: "research-semmyk"
 ---
+
 # parserPDF
 
 [![Gradio](https://img.shields.io/badge/Gradio-SDK-amber?logo=gradio)](https://www.gradio.app/)
