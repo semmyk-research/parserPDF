@@ -27,17 +27,36 @@ def create_outputdir(root: Union[str, Path], output_dir_string:str = None) -> Pa
     output_dir.mkdir(mode=0o2644, parents=True, exist_ok=True)
     return output_dir
 
-def check_create_paths(file_dir: Union[str, Path]) -> List[Path]:
+def check_create_file(filename: str, dir_path: Union[str, Path]="logs") -> Path:
     """
-    check if File or directory path exist, else create one.
+    check if File exists, else create one ad return the file path.
+
+    Args:
+        directory_path (str): The path to the directory.
+        filename (str): The name of the file to check/create.
+    Returns:
+        The pathlib.Path object for the file
     """
-    file_dir = Path("logs") / file_dir if not isinstance(file_dir, Path) else Path(file_dir)
-    if not file_dir.exists():        
-        ##SMY: [resolved] Permission Errno13 - https://stackoverflow.com/a/57454275
-        file_dir.touch(mode=0o2644, exist_ok=True)  #, parents=True)  ##SMY: create file if not exists        
-        file_dir.chmod(0) 
     
-    return file_dir
+    #file_dir = Path("logs") / file_dir if not isinstance(file_dir, Path) else Path(file_dir)
+    dir_path = dir_path if isinstance(dir_path, Path) else Path(dir_path)
+
+    # Ensure the directory exists
+    # Create the parent directory if it doesn't exist.
+    # `parents=True` creates any missing parent directories.
+    # `exist_ok=True` prevents an error if the directory already exists.
+    dir_path.mkdir(parents=True, exist_ok=True, mode=0o2644)
+    
+    file_path = dir_path / filename  # Concatenate directory and filename to get full path
+    if not file_path.exists():       # Create the file if it doesn't exist
+        file_path.touch()  # Creates an empty file if it doesn't exists
+        #file_dir.touch(mode=0o2644, exist_ok=True)  #, parents=True)  ##SMY: Note Permission Errno13 - https://stackoverflow.com/a/57454275
+        #file_dir.chmod(0) 
+    
+    return file_path
+
+## debug
+#print(f'file: {check_create_file("app_logging.log")}')
 
 def is_file_with_extension(path_obj: Path) -> bool:
     """
