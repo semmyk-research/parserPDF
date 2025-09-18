@@ -27,9 +27,9 @@ def create_outputdir(root: Union[str, Path], output_dir_string:str = None) -> Pa
     output_dir.mkdir(mode=0o2644, parents=True, exist_ok=True)
     return output_dir
 
-def check_create_file(filename: str, dir_path: Union[str, Path]="logs") -> Path:
+def check_create_logfile(filename: str, dir_path: Union[str, Path]="logs") -> Path:
     """
-    check if File exists, else create one ad return the file path.
+    check if log file exists, else create one and return the file path.
 
     Args:
         directory_path (str): The path to the directory.
@@ -37,32 +37,77 @@ def check_create_file(filename: str, dir_path: Union[str, Path]="logs") -> Path:
     Returns:
         The pathlib.Path object for the file
     """
+
+    import datetime
+
+    # 1. Get the path of the current script's parent directory (the project folder).
+    # `__file__` is a special variable that holds the path to the current script.
+    project_root = Path(__file__).parent.parent.resolve()
+    dir_path = dir_path if isinstance(dir_path, Path) else Path(dir_path)
+    
+    # 2. Define the path for the logs directory.
+    # The `/` operator is overloaded to join paths easily.
+    logs_dir = project_root / dir_path
+    
+    # 3. Create the logs directory if it doesn't already exist.
+    # `mkdir()` with `exist_ok=True` prevents a FileExistsError if the folder exists.
+    logs_dir.mkdir(exist_ok=True)
+    
+    # 4. Create log file with a timestamp inside the new logs directory.
+    # This ensures a unique file is created each time the script runs.
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d")  #.strftime("%Y-%m-%d_%H-%M-%S")
+    log_file = logs_dir / f"{Path(filename).stem}_{timestamp}.log"
+    
+    # 5. Check if the file exists (it won't,if it's not the same day).
+    if not log_file.exists():
+        # If the file doesn't exist, touch() will create an empty file.
+        log_file.touch()
+    
+    print(f"Created log file at: {log_file}")
+
+    return log_file 
+
+def check_create_file(filename: str, dir_path: Union[str, Path]="logs") -> Path:
+    """
+    check if File exists, else create one and return the file path.
+
+    Args:
+        directory_path (str): The path to the directory.
+        filename (str): The name of the file to check/create.
+    Returns:
+        The pathlib.Path object for the file
+    """
+    # Get project root
+    project_root = Path(__file__).parent.resolve()  ##SMY:  `__file__` is a special variable pointing to current file`
     
     #file_dir = Path("logs") / file_dir if not isinstance(file_dir, Path) else Path(file_dir)
     dir_path = dir_path if isinstance(dir_path, Path) else Path(dir_path)
 
     # Ensure the directory exists
-    # Create the parent directory if it doesn't exist.
+    # Create the file parent directory, relative to the project root, if it doesn't exist.
     # `parents=True` creates any missing parent directories.
     # `exist_ok=True` prevents an error if the directory already exists.
-    dir_path.mkdir(parents=True, exist_ok=True, mode=0o2664)  #, mode=0o2644)
-    dir_path.chmod(0) 
+    dir_path = project_root / dir_path
+    dir_path.mkdir(parents=True, exist_ok=True)  #, mode=0o2664)  #, mode=0o2644)
+    #dir_path.chmod(0) 
     
     file_path = dir_path / filename  # Concatenate directory and filename to get full path
-    print(f"file_path:  {file_path}")  ##]debug
+    #print(f"file_path:  {file_path}")  ##debug
     
-    file_path.touch(exist_ok=True, mode=0o2664)  # Creates an empty file if it doesn't exists
+    #file_path.touch(exist_ok=True, mode=0o2664)  # Creates an empty file if it doesn't exists
 
-    '''
+    #'''
     if not file_path.exists():       # check if file doesn't exist
-        file_path.touch(exist_ok=True, mode=0o2664)  # Creates an empty file if it doesn't exists
+        file_path.touch(exist_ok=True)  #, mode=0o2664)  # Creates an empty file if it doesn't exists
         #file_dir.touch(mode=0o2644, exist_ok=True)  #, parents=True)  ##SMY: Note Permission Errno13 - https://stackoverflow.com/a/57454275
         #file_dir.chmod(0)
-    ''' 
+    #''' 
     
     return file_path
 
 ## debug
+#from pathlib import Path
+#from typing import Union
 #print(f'file: {check_create_file("app_logging.log")}')
 
 def is_file_with_extension(path_obj: Path) -> bool:
