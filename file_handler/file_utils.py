@@ -27,6 +27,18 @@ def create_outputdir(root: Union[str, Path], output_dir_string:str = None) -> Pa
     output_dir.mkdir(mode=0o2644, parents=True, exist_ok=True)
     return output_dir
 
+def check_create_paths(file_dir: Union[str, Path]) -> List[Path]:
+    """
+    check if File or directory path exist, else create one.
+    """
+    file_dir = Path("logs") / file_dir if not isinstance(file_dir, Path) else Path(file_dir)
+    if not file_dir.exists():        
+        ##SMY: [resolved] Permission Errno13 - https://stackoverflow.com/a/57454275
+        file_dir.mkdir(mode=0o2644, parents=True, exist_ok=True)  ##SMY: create nested path if not exists
+        file_dir.chmod(0)
+    
+    return file_dir
+
 def is_file_with_extension(path_obj: Path) -> bool:
     """
     Checks if a pathlib.Path object is a file and has a non-empty extension.
