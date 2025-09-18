@@ -10,41 +10,22 @@ python_version: 3.12
 license: mit
 pinned: true
 short_description: PDF & HTML parser to markdown
-models: [meta-llama/Llama-4-Maverick-17B-128E-Instruct, openai/gpt-oss-120b, openai/gpt-oss-20b]
-tags: [markdown, PDF, parser, converter, extractor]
-#hf_oauth: true
-#preload_from_hub: [https://huggingface.co/datalab-to/surya_layout, https://huggingface.co/datalab-to/surya_tablerec, huggingface.co/datalab-to/line_detector0, https://huggingface.co/tarun-menta/ocr_error_detection/blob/main/config.json]
+models:
+- meta-llama/Llama-4-Maverick-17B-128E-Instruct
+- openai/gpt-oss-120b
+- openai/gpt-oss-20b
+tags:
+- markdown
+- PDF
+- parser
+- converter
+- extractor
 owner: research-semmyk
-#---
-#
-#[Project]
-#---
-#title: parser2md - PDF & HTML parser to markdown
-#emoji: \U0001F4C4📝📑
-#colorFrom: yellow
-#colorTo: purple
-#sdk: gradio
-#python_version: 3.12
-#sdk_version: 5.44.1
-#app_file: main.py
-#command: python main.py
-#models:
-#  - meta-llama/Llama-4-Maverick-17B-128E-Instruct
-#  - openai/gpt-oss-120b
-#pinned: false
-#license: mit
-#name: parser2md
-#short_description: PDF & HTML parser to markdown
 version: 0.1.0
 readme: README.md
-requires-python: ">=3.12"
+requires-python: '>=3.12'
 dependencies: []
-#owner: research-semmyk
-#preload_from_hub:
-#  - https://huggingface.co/datalab-to/surya_layout
-#  - https://huggingface.co/datalab-to/surya_tablerec
-#  - huggingface.co/datalab-to/line_detector0
-#  - https://huggingface.co/tarun-menta/ocr_error_detection/blob/main/config.json
+sdk_version: 5.46.0
 ---
 
 # parserPDF
