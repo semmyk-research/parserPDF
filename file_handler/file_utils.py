@@ -39,15 +39,28 @@ def check_create_logfile(filename: str, dir_path: Union[str, Path]="logs") -> Pa
     """
 
     import datetime
+    import warnings
+    import tempfile
 
     # 1. Get the path of the current script's parent directory (the project folder).
     # `__file__` is a special variable that holds the path to the current script.
-    project_root = Path(__file__).parent.parent.resolve()
+    #project_root = Path(__file__).parent.parent.resolve()
+
+    # 1. Get the designated writable directory for Hugging Face Spaces: '/data'
+    writable_dir = Path("/data")
+    try:
+        if not writable_dir.is_dir():
+            logs_dir.mkdir(exist_ok=True)
+    except PermissionError: ##[Errno 13] Permission denied: '/home/user/app/logs/app_logging_2025-09-18.log'
+        warnings.warn("[Errno 13] Permission denied, possibly Persistent Storage not enable: attempting temp folder")
+        writable_dir = Path(tempfile.gettempdir())    # 
+
+    # check log dir path
     dir_path = dir_path if isinstance(dir_path, Path) else Path(dir_path)
     
     # 2. Define the path for the logs directory.
     # The `/` operator is overloaded to join paths easily.
-    logs_dir = project_root / dir_path
+    logs_dir = writable_dir / dir_path  #project_root / dir_path
     
     # 3. Create the logs directory if it doesn't already exist.
     # `mkdir()` with `exist_ok=True` prevents a FileExistsError if the folder exists.
@@ -63,7 +76,7 @@ def check_create_logfile(filename: str, dir_path: Union[str, Path]="logs") -> Pa
         # If the file doesn't exist, touch() will create an empty file.
         log_file.touch()
     
-    print(f"Created log file at: {log_file}")
+    #print(f"Created log file at: {log_file}")
 
     return log_file 
 
