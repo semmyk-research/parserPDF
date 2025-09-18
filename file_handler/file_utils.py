@@ -49,6 +49,7 @@ def check_create_file(filename: str, dir_path: Union[str, Path]="logs") -> Path:
     dir_path.chmod(0) 
     
     file_path = dir_path / filename  # Concatenate directory and filename to get full path
+    print(f"file_path:  {file_path}")  ##]debug
     if not file_path.exists():       # check if file doesn't exist
         file_path.touch(exist_ok=True, mode=0o2664)  # Creates an empty file if it doesn't exists
         #file_dir.touch(mode=0o2644, exist_ok=True)  #, parents=True)  ##SMY: Note Permission Errno13 - https://stackoverflow.com/a/57454275
