@@ -76,7 +76,7 @@ def check_create_logfile(filename: str, dir_path: Union[str, Path]="logs") -> Pa
         # If the file doesn't exist, touch() will create an empty file.
         log_file.touch()
     
-    #print(f"Created log file at: {log_file}")
+    print(f"Created log file at: {log_file}")  ##debug
 
     return log_file 
 

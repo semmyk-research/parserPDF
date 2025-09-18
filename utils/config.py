@@ -8,10 +8,9 @@ Centralised configuration constants.
 """
 
 # UI text
-TITLE = "PyPDFMd – PDF & HTML ↔ Markdown Converter"
+TITLE = "Parser2md (PyPDFmd/ParserPDF) – PDF & HTML ↔ Markdown Converter"
 DESCRIPTION = (
-    "Drag‑and‑drop a single PDF/HTML, a folder to convert to Markdown."
-    "Or upload Markdown/LaTeX files and generate a polished PDF."
+    "Parser2md (PyPDFmd) - Convert files to Markdown."
 )
 DESCRIPTION_PDF_HTML = (
     "Upload a single or multiple PDF or HTML, a folder or an entire directory tree "
