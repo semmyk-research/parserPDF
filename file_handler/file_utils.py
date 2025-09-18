@@ -45,10 +45,11 @@ def check_create_file(filename: str, dir_path: Union[str, Path]="logs") -> Path:
     # Create the parent directory if it doesn't exist.
     # `parents=True` creates any missing parent directories.
     # `exist_ok=True` prevents an error if the directory already exists.
-    dir_path.mkdir(parents=True, exist_ok=True)  #, mode=0o2644)
+    dir_path.mkdir(parents=True, exist_ok=True, mode=0o2664)  #, mode=0o2644)
+    file_dir.chmod(0) 
     
     file_path = dir_path / filename  # Concatenate directory and filename to get full path
-    if not file_path.exists():       # Create the file if it doesn't exist
+    if not file_path.exists():       # check if file doesn't exist
         file_path.touch()  # Creates an empty file if it doesn't exists
         #file_dir.touch(mode=0o2644, exist_ok=True)  #, parents=True)  ##SMY: Note Permission Errno13 - https://stackoverflow.com/a/57454275
         #file_dir.chmod(0) 
