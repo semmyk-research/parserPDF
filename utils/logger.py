@@ -65,8 +65,8 @@ def setup_logging(level: int = None) -> None:
     # File handler
     #file_handler = logging.FileHandler("logs/app_logging_scrap.log", mode="a", encoding="utf-8")
     #file_handler = logging.FileHandler("logs/app_logging.log", mode="a", encoding="utf-8")
-    from file_handler.file_utils import check_create_paths
-    file_handler = logging.FileHandler(check_create_paths("app_logging.log"), mode="a", encoding="utf-8")
+    from file_handler.file_utils import check_create_file
+    file_handler = logging.FileHandler(check_create_pfile("app_logging.log"), mode="a", encoding="utf-8")
     file_handler.setFormatter(JsonFormatter()) 
     
     root = logging.getLogger()
