@@ -46,7 +46,7 @@ def check_create_file(filename: str, dir_path: Union[str, Path]="logs") -> Path:
     # `parents=True` creates any missing parent directories.
     # `exist_ok=True` prevents an error if the directory already exists.
     dir_path.mkdir(parents=True, exist_ok=True, mode=0o2664)  #, mode=0o2644)
-    file_dir.chmod(0) 
+    file_path.chmod(0) 
     
     file_path = dir_path / filename  # Concatenate directory and filename to get full path
     if not file_path.exists():       # check if file doesn't exist
