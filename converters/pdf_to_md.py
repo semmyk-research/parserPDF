@@ -238,7 +238,7 @@ class PdfToMarkdownConverter:
             except Exception as exc:
                 if attempt == max_retries:
                     tb = traceback.format_exc()
-                    return f"✗ {info.get("file")} → {exc}\n{tb}"
+                    return f"✗ {info.get('file')} → {exc}\n{tb}"
                     #return f"✗ {md_filename} → {exc}\n{tb}"
                 
                 #time.sleep(2 ** attempt)
