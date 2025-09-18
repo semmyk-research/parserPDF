@@ -50,7 +50,7 @@ def check_create_logfile(filename: str, dir_path: Union[str, Path]="logs") -> Pa
     writable_dir = Path("/data")
     try:
         if not writable_dir.is_dir():
-            logs_dir.mkdir(exist_ok=True)
+            writable_dir.mkdir(exist_ok=True)
     except PermissionError: ##[Errno 13] Permission denied: '/home/user/app/logs/app_logging_2025-09-18.log'
         warnings.warn("[Errno 13] Permission denied, possibly Persistent Storage not enable: attempting temp folder")
         writable_dir = Path(tempfile.gettempdir())    # 
