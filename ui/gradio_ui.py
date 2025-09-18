@@ -18,8 +18,8 @@ from llm.llm_login import login_huggingface
 
 from converters.extraction_converter import DocumentConverter as docconverter  #DocumentExtractor #as docextractor
 from converters.pdf_to_md import PdfToMarkdownConverter, init_worker
-from converters.md_to_pdf import MarkdownToPdfConverter
-from converters.html_to_md import HtmlToMarkdownConverter
+#from converters.md_to_pdf import MarkdownToPdfConverter
+#from converters.html_to_md import HtmlToMarkdownConverter  ##SMY: PENDING: implementation
 
 from utils.get_config import get_config_value
 from utils.logger import get_logger
@@ -29,7 +29,7 @@ logger = get_logger(__name__)   ##NB: setup_logging()  ## set logging
 # Instantiate converters class once – they are stateless
 pdf2md_converter = PdfToMarkdownConverter()
 #html2md_converter = HtmlToMarkdownConverter()
-md2pdf_converter = MarkdownToPdfConverter()
+#md2pdf_converter = MarkdownToPdfConverter()
 
 
 # pool executor to convert files called by Gradio
