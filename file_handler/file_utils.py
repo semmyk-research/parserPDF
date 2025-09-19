@@ -1,11 +1,12 @@
 # file_handler/file_utils.py
 #import os
 from pathlib import Path
+import sys
 from itertools import chain
 from typing import List, Union, Any, Mapping
 from PIL import Image
 
-import utils.config as config
+#import utils.config as config   ##SMY: currently unused
 
 ##SMY: Might be deprecated vis duplicated. See marker/marker/config/parser.py  ~ https://github.com/datalab-to/marker/blob/master/marker/config/parser.py#L169
 #def create_outputdir(root: Union[str, Path], out_dir:Union[str, Path] = None) -> Path:  #List[Path]:
@@ -27,6 +28,87 @@ def create_outputdir(root: Union[str, Path], output_dir_string:str = None) -> Pa
     output_dir.mkdir(mode=0o2644, parents=True, exist_ok=True)
     return output_dir
 
+def find_file(file_name: str) -> Path:  #configparser.ConfigParser:
+    """
+    Finds file from the same directory, parent's sibling or grandparent directory of the calling script.
+    
+    Args:
+        file_name: The name of the file to find.
+    
+    Returns:
+        The path of the file.
+    
+    Raises:
+        FileNotFoundError: If the file cannot be found.
+    Drawback:
+        Return the first result from the for loop iteration through the generator produced by rglob(). As soon as the first match is found, the function returns it, making the process very efficient by not searching any further but might not match the exact. 
+    """
+    
+    # 1. Get the current script's path, its parent and its grandparent directory
+    # Start the search from the directory of the file this function is in
+    try:
+        current_path = Path(sys.argv[0]).resolve()        
+    except IndexError:        
+        # Handle cases where sys.argv[0] might not exist (e.g., in some IDEs)
+        current_path = Path(__file__).resolve()
+        #current_path = Path('.').resolve()  ##unreliable
+
+    parent_dir = current_path.parent
+    grandparent_dir = current_path.parent.parent
+
+    # Walk up the directory tree until the config file is found
+    '''
+    for parent in [current_path, *current_path.parents]:
+        config_path = parent / file_name
+        if config_path.is_file():
+            return config_path
+    raise FileNotFoundError(f"Configuration file '{file_name}' not found.")
+    '''
+    try:
+        # 1. Search the parent directory directly
+        parent_filepath = parent_dir / file_name
+        if parent_filepath.is_file():
+            return parent_filepath
+            
+        # 2. Search the grandparent directory directly
+        grandparent_filepath = grandparent_dir / file_name
+        if grandparent_filepath.is_file():
+            return grandparent_filepath
+
+        # 3. Search recursively in all subdirectories of the grandparent.
+        #    This will cover all sibling directories of the parent.
+        for p in grandparent_dir.rglob(file_name):
+            if p.is_file():
+                return p
+        
+        return None
+    except Exception as exc:
+        return exc
+
+def resolve_grandparent_object(gp_object:str):
+    ###
+    # Create a Path object based on current file's location, resolve it to an absolute path,
+    # and then get its parent's parent using chained .parent calls or the parents[] attribute.
+    
+    # 1. Get the current script's path, its parent and its grandparent directory
+    try:
+        current_path = Path(sys.argv[0]).resolve()        
+    except IndexError:        
+        # Handle cases where sys.argv[0] might not exist (e.g., in some IDEs)
+        #current_path = Path(__file__).resolve()
+        current_path = Path('.').resolve()
+
+    parent_dir = current_path.parent
+    grandparent_dir = current_path.parent.parent
+    
+    #grandparent_dir = Path(__file__).resolve().parent.parent
+
+    sys.path.insert(0, f"{grandparent_dir}")  #\\file_handler")
+    sys.path.insert(1, f"{grandparent_dir}\\{gp_object}")
+    #print(f"resolve: sys.path[0]:  {sys.path[0]}")  ##debug
+    #print(f"resolve: sys.path[1]:  {sys.path[1]}")  ##debug
+
+
 def check_create_logfile(filename: str, dir_path: Union[str, Path]="logs") -> Path:
     """
     check if log file exists, else create one and return the file path.
@@ -44,42 +126,53 @@ def check_create_logfile(filename: str, dir_path: Union[str, Path]="logs") -> Pa
 
     # 1. Get the path of the current script's parent directory (the project folder).
     # `__file__` is a special variable that holds the path to the current script.
-    #project_root = Path(__file__).parent.parent.resolve()
-
-    # 1. Get the designated writable directory for Hugging Face Spaces: '/data'
-    writable_dir = Path("/data")
-    try:
-        if not writable_dir.is_dir():
-            writable_dir.mkdir(exist_ok=True)
-    except PermissionError: ##[Errno 13] Permission denied: '/home/user/app/logs/app_logging_2025-09-18.log'
-        warnings.warn("[Errno 13] Permission denied, possibly Persistent Storage not enable: attempting temp folder")
-        writable_dir = Path(tempfile.gettempdir())    # 
-
-    # check log dir path
-    dir_path = dir_path if isinstance(dir_path, Path) else Path(dir_path)
+    #project_root = Path(__file__).resolve().parent.parent
+    project_root = Path(__file__).resolve().parents[1]   ##SMY: parents[1] gets the second-level parent (the grandparent)
     
     # 2. Define the path for the logs directory.
     # The `/` operator is overloaded to join paths easily.
-    logs_dir = writable_dir / dir_path  #project_root / dir_path
+    writable_dir = project_root / dir_path if isinstance(dir_path, str) else Path(dir_path)    
     
-    # 3. Create the logs directory if it doesn't already exist.
+    try:
+        
+            writable_dir.mkdir(mode=0o2644, parents=True, exist_ok=True)
+    except PermissionError: ##[Errno 13] Permission denied: '/home/user/app/logs/app_logging_2025-09-18.log'
+        warnings.warn("[Errno 13] Permission denied, possibly insufficient permission or Persistent Storage not enable: attempting chmod 0o2644")
+        #writable_dir = Path(tempfile.gettempdir())    # 
+        writable_dir.mkdir(mode=0o2644, parents=True, exist_ok=True)
+        writable_dir.chmod(0o2644)
+        if not writable_dir.is_dir():
+            warnings.warn(f"Working without log files in directory: {writable_dir}")
+    
+    # 3. Define and create the logs directory if it doesn't already exist.
     # `mkdir()` with `exist_ok=True` prevents a FileExistsError if the folder exists.
-    logs_dir.mkdir(exist_ok=True)
+    logs_dir = writable_dir / dir_path  #project_root / dir_path
+    if not logs_dir.is_dir():
+        logs_dir.mkdir(mode=0o2644, parents=True, exist_ok=True)
     
     # 4. Create log file with a timestamp inside the new logs directory.
-    # This ensures a unique file is created each time the script runs.
+    # This ensures a unique log file is created for the day the script runs.
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d")  #.strftime("%Y-%m-%d_%H-%M-%S")
     log_file = logs_dir / f"{Path(filename).stem}_{timestamp}.log"
     
-    # 5. Check if the file exists (it won't,if it's not the same day).
-    if not log_file.exists():
+    # 5. Check if the file exists (it won't, if it's not the same day).
+    if not log_file.exists(): # or log_file.is_file():
         # If the file doesn't exist, touch() will create an empty file.
-        log_file.touch()
+        log_file.touch(exist_ok=True)
     
-    print(f"Created log file at: {log_file}")  ##debug
+    #print(f"Created log file at: {log_file}")  ##debug
 
     return log_file 
 
+## debug
+'''
+from pathlib import Path
+from typing import Union
+resolve_grandparent_object("file_handler")
+print(f'file: {check_create_logfile("app_logging.log")}')
+'''
+
+##SMY: to revisit. Make generic for any file apart from log files
 def check_create_file(filename: str, dir_path: Union[str, Path]="logs") -> Path:
     """
     check if File exists, else create one and return the file path.
@@ -91,8 +184,9 @@ def check_create_file(filename: str, dir_path: Union[str, Path]="logs") -> Path:
         The pathlib.Path object for the file
     """
     # Get project root
-    project_root = Path(__file__).parent.resolve()  ##SMY:  `__file__` is a special variable pointing to current file`
-    
+    #project_root = Path(__file__).resolve().parent.parent  ##SMY:  `__file__` is a special variable pointing to current file`
+    project_root = Path(__file__).resolve().parents[1]      ##SMY: leverages parents. Get 2nd level
+
     #file_dir = Path("logs") / file_dir if not isinstance(file_dir, Path) else Path(file_dir)
     dir_path = dir_path if isinstance(dir_path, Path) else Path(dir_path)
 
@@ -101,7 +195,8 @@ def check_create_file(filename: str, dir_path: Union[str, Path]="logs") -> Path:
     # `parents=True` creates any missing parent directories.
     # `exist_ok=True` prevents an error if the directory already exists.
     dir_path = project_root / dir_path
-    dir_path.mkdir(parents=True, exist_ok=True)  #, mode=0o2664)  #, mode=0o2644)
+    if not dir_path.is_dir():
+        dir_path.mkdir(parents=True, exist_ok=True, mode=0o2664)  #, mode=0o2644)
     #dir_path.chmod(0) 
     
     file_path = dir_path / filename  # Concatenate directory and filename to get full path
@@ -117,11 +212,6 @@ def check_create_file(filename: str, dir_path: Union[str, Path]="logs") -> Path:
     #''' 
     
     return file_path
-
-## debug
-#from pathlib import Path
-#from typing import Union
-#print(f'file: {check_create_file("app_logging.log")}')
 
 def is_file_with_extension(path_obj: Path) -> bool:
     """

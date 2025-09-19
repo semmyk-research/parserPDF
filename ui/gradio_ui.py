@@ -21,6 +21,8 @@ from converters.pdf_to_md import PdfToMarkdownConverter, init_worker
 #from converters.md_to_pdf import MarkdownToPdfConverter
 #from converters.html_to_md import HtmlToMarkdownConverter  ##SMY: PENDING: implementation
 
+from file_handler.file_utils import find_file
+
 from utils.get_config import get_config_value
 from utils.logger import get_logger
 
@@ -79,15 +81,16 @@ def convert_batch(
         return "Initialising ProcessPool: No files uploaded."
     
     # Get config values if not provided
-    model_id = get_config_value("MARKER_CAP", "MODEL_ID") if not model_id else model_id
-    openai_base_url = get_config_value( "MARKER_CAP", "OPENAI_BASE_URL") if not openai_base_url else openai_base_url
-    openai_image_format = get_config_value( "MARKER_CAP", "OPENAI_IMAGE_FORMAT") if not openai_image_format else openai_image_format
-    max_workers = get_config_value("MARKER_CAP", "MAX_WORKERS") if not max_workers else max_workers
-    max_retries = get_config_value("MARKER_CAP", "MAX_RETRIES") if not max_retries else max_retries
-    output_format = get_config_value("MARKER_CAP", "OUTPUT_FORMAT") if not output_format else output_format
-    output_dir_string = str(get_config_value("MARKER_CAP", "OUTPUT_DIR") if not output_dir_string else output_dir_string)
-    use_llm = get_config_value("MARKER_CAP", "USE_LLM") if not use_llm else use_llm
-    page_range = get_config_value("MARKER_CAP", "PAGE_RANGE") if not page_range else page_range
+    config_file = find_file("config.ini")  ##from file_handler.file_utils
+    model_id = get_config_value(config_file, "MARKER_CAP", "MODEL_ID") if not model_id else model_id
+    openai_base_url = get_config_value(config_file, "MARKER_CAP", "OPENAI_BASE_URL") if not openai_base_url else openai_base_url
+    openai_image_format = get_config_value(config_file, "MARKER_CAP", "OPENAI_IMAGE_FORMAT") if not openai_image_format else openai_image_format
+    max_workers = get_config_value(config_file, "MARKER_CAP", "MAX_WORKERS") if not max_workers else max_workers
+    max_retries = get_config_value(config_file, "MARKER_CAP", "MAX_RETRIES") if not max_retries else max_retries
+    output_format = get_config_value(config_file, "MARKER_CAP", "OUTPUT_FORMAT") if not output_format else output_format
+    output_dir_string = str(get_config_value(config_file, "MARKER_CAP", "OUTPUT_DIR") if not output_dir_string else output_dir_string)
+    use_llm = get_config_value(config_file, "MARKER_CAP", "USE_LLM") if not use_llm else use_llm
+    page_range = get_config_value(config_file,"MARKER_CAP", "PAGE_RANGE") if not page_range else page_range
          
     # Create the initargs tuple from the Gradio inputs: # 'files' is an iterable, and handled separately.
     init_args = (
