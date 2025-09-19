@@ -24,7 +24,9 @@ def set_weasyprint_library(libpath: Union[str, Path] = None, config_file: Union[
             cfg.read(config_file)  #"utils\\config.ini")
             lib_path = cfg["LIBRARIES_CAP"].get(f"WEASYPRINT_DLL_DIRECTORIES", "C:\\Dat\\dev\\gtk3-runtime\\bin")
             '''
-            lib_path = get_config_value("LIBRARIES_CAP", "WEASYPRINT_DLL_DIRECTORIES") if not libpath else "C:\\Dat\\dev\\gtk3-runtime\\bin"
+            from file_handler.file_utils import find_file
+            config_file = find_file("config.ini")  ##from file_handler.file_utils
+            lib_path = get_config_value(config_file, "LIBRARIES_CAP", "WEASYPRINT_DLL_DIRECTORIES") if not libpath else "C:\\msys64\\mingw64\\bin"
 
             # Check if the file exists before attempting to load it
             #if not os.path.exists(libobject):

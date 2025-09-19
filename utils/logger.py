@@ -5,7 +5,7 @@ import logging
 import sys
 from datetime import datetime, timezone
 
-'''
+'''  ##SMY: discarded
 def get_logger(name: str) -> logging.Logger:
     """
     Returns a logger configured with a console handler.
@@ -67,6 +67,8 @@ def setup_logging(level: int = None) -> None:
     #file_handler = logging.FileHandler("logs/app_logging.log", mode="a", encoding="utf-8")
     from file_handler.file_utils import check_create_logfile
     file_handler = logging.FileHandler(check_create_logfile("app_logging.log"), mode="a", encoding="utf-8")
+    ## Getting filepermission error
+    
     file_handler.setFormatter(JsonFormatter()) 
     
     root = logging.getLogger()
