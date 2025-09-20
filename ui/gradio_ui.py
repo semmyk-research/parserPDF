@@ -33,7 +33,6 @@ pdf2md_converter = PdfToMarkdownConverter()
 #html2md_converter = HtmlToMarkdownConverter()
 #md2pdf_converter = MarkdownToPdfConverter()
 
-
 # pool executor to convert files called by Gradio
 def convert_batch(
     pdf_files, #: list[str],

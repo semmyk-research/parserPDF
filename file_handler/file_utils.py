@@ -47,7 +47,7 @@ def find_file(file_name: str) -> Path:  #configparser.ConfigParser:
     # 1. Get the current script's path, its parent and its grandparent directory
     # Start the search from the directory of the file this function is in
     try:
-        current_path = Path(sys.argv[0]).resolve()        
+        current_path = Path(sys.argv[0]).resolve()
     except IndexError:        
         # Handle cases where sys.argv[0] might not exist (e.g., in some IDEs)
         current_path = Path(__file__).resolve()

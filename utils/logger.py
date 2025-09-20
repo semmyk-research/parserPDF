@@ -69,7 +69,7 @@ def setup_logging(level: int = None) -> None:
     file_handler = logging.FileHandler(check_create_logfile("app_logging.log"), mode="a", encoding="utf-8")
     ## Getting filepermission error
     
-    file_handler.setFormatter(JsonFormatter()) 
+    file_handler.setFormatter(JsonFormatter())
     
     root = logging.getLogger()
     root.handlers.clear()
