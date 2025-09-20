@@ -12,7 +12,7 @@ pinned: true
 short_description: PDF & HTML parser to markdown
 models: [meta-llama/Llama-4-Maverick-17B-128E-Instruct, openai/gpt-oss-120b, openai/gpt-oss-20b]
 tags: [markdown, PDF, parser, converter, extractor]
-#hf_oauth: true
+hf_oauth: true
 preload_from_hub: [https://huggingface.co/datalab-to/surya_layout, https://huggingface.co/datalab-to/surya_tablerec, huggingface.co/datalab-to/line_detector0, https://huggingface.co/tarun-menta/ocr_error_detection/blob/main/config.json]
 owner: research-semmyk
 #---
