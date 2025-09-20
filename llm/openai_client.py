@@ -45,11 +45,12 @@ class OpenAIChatClient:
             #self.token = api_token if api_token else None   ##debug
             self.token = openai_api_key_env if openai_api_key_env else api_token  #dotenv.get_key(".env", "OPENAI_API_KEY")
             #self.token = token or os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")  ## not preferred
-            login_huggingface(self.token) if not is_login_huggingface() else logger.log(level=20, msg=f"logged in to HF Hub already") ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.
+            login_huggingface(self.token) if not is_login_huggingface() else logger.log(level=20, msg=f"You are logged in to HF Hub already") ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.
             #self.fake_token = api_token or "a1b2c3" #or os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
             self.openai_api_key = self.token  #self.fake_token
             self.temperature = temperature
             self.top_p = top_p
+            self.islogged_in = is_login_huggingface()
 
             logger.log(level=2, msg="initialised OpenAIChatClient:", extra={"base_url": self.base_url, "openai_api_key": self.openai_api_key})
             

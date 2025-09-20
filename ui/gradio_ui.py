@@ -248,39 +248,7 @@ def convert_pdfs_to_md(file: gr.File | None, folder: str | None) -> dict:
     # Gradio expects a dict of {filename: content}
     return results
 
-## SMY: to refactor and moved to logic file. Currently unused
-def convert_htmls_to_md(file: gr.File | None, folder: str | None) -> dict:
-    """
-    Gradio callback for HTML → Markdown.
-    Accepts either a single file or a folder path (recursively).
-    Returns a dictionary of filename → Markdown string.
-    """
-    if not file and not folder:
-        return {"error": "Please provide a HTML file or a folder."}
-
-    html_paths = []
-
-    # Single file
-    if file:
-        html_path = Path(file.name)
-        html_paths.append(html_path)
-
-    # Folder (recursively)
-    if folder:
-        try:
-            html_paths.extend(collect_html_paths(folder))
-        except Exception as exc:
-            logger.exception("Folder traversal failed.")
-            return {"error": str(exc)}
-
-    if not html_paths:
-        return {"error": "No HTML files found."}
-
-    results = html2md_converter.batch_convert(html_paths)
-    # Gradio expects a dict of {filename: content}
-    return results
-
-## SMY: to refactor and moved to logic file
+## SMY: to be implemented AND to refactor and moved to logic file
 def convert_md_to_pdf(file: gr.File | None, folder: str | None) -> list[gr.File]:
     """
     Gradio callback for Markdown → PDF.
@@ -314,6 +282,42 @@ def convert_md_to_pdf(file: gr.File | None, folder: str | None) -> list[gr.File]
     # Convert to Gradio File objects
     gr_files = [gr.File(path=str(p)) for p in pdf_files]
     return gr_files
+
+
+## SMY: to refactor and moved to logic file. Currently unused
+'''
+def convert_htmls_to_md(file: gr.File | None, folder: str | None) -> dict:
+    """
+    Gradio callback for HTML → Markdown.
+    Accepts either a single file or a folder path (recursively).
+    Returns a dictionary of filename → Markdown string.
+    """
+    if not file and not folder:
+        return {"error": "Please provide a HTML file or a folder."}
+
+    html_paths = []
+
+    # Single file
+    if file:
+        html_path = Path(file.name)
+        html_paths.append(html_path)
+
+    # Folder (recursively)
+    if folder:
+        try:
+            html_paths.extend(collect_html_paths(folder))
+        except Exception as exc:
+            logger.exception("Folder traversal failed.")
+            return {"error": str(exc)}
+
+    if not html_paths:
+        return {"error": "No HTML files found."}
+
+    results = html2md_converter.batch_convert(html_paths)
+    # Gradio expects a dict of {filename: content}
+    return results
+'''
+
 ##====================
 
 def build_interface() -> gr.Blocks:
@@ -530,19 +534,25 @@ def build_interface() -> gr.Blocks:
         max_retries_sl.change(update_state_stored_value, inputs=max_retries_sl, outputs=state_max_retries)
 
 
-        with gr.Accordion("🤗 HuggingFace Logout", open=False):
+        with gr.Accordion("🤗 HuggingFace Client Logout", open=True):  #, open=False):
             # Logout controls
             def do_logout():
                 #ok = docextractor.client.logout()
                 ok = docconverter.client.logout()
                 # Reset token textbox on successful logout
-                msg = "✅ Logged out of Hugging Face and cleared tokens." if ok else "⚠️ Logout failed."
-                return gr.update(value=""), gr.update(visible=True, value=msg)
+                msg = "✅ Logged out of HuggingFace and cleared tokens. Remember to log out of HuggingFace completely." if ok else "⚠️ Logout failed."
+                return gr.update(value=""), gr.update(visible=True, value=msg), gr.update(value="Sign in to HuggingFace 🤗")
+            
+            def custom_do_logout():
+                return gr.update(value="Sign in to HuggingFace 🤗")
             
             logout_status = gr.Markdown(visible=False)
-            logout_btn = gr.Button("Logout from Hugging Face", variant="stop")
+            with gr.Row:
+                hf_login_logout_btn = gr.LoginButton(value="Sign in to HuggingFace 🤗", logout_value="Logout of HF: ({})", variant="huggingface")
+                logout_btn = gr.Button("Logout from session and Hugging Face (inference) Client", variant="stop", )
 
-            logout_btn.click(fn=do_logout, inputs=None, outputs=[api_token_tb, logout_status]) 
+            hf_login_logout_btn.click(fn=custom_do_logout, inputs=None, outputs=hf_login_logout_btn)
+            logout_btn.click(fn=do_logout, inputs=None, outputs=[api_token_tb, logout_status, hf_login_logout_btn]) 
 
         
         # The gr.State component to hold the accumulated list of files

@@ -1,4 +1,4 @@
-from huggingface_hub import login, logout
+from huggingface_hub import HfApi, login, logout, get_token
 import os
 import traceback
 from time import sleep
@@ -30,12 +30,17 @@ def login_huggingface(token: Optional[str] = None):
     token = token
     # Privacy-first login: try interactive CLI first; fallback to provided/env token only if needed
     try:
-        login()
-        sleep(5)  ##SMY pause for login. Helpful: pool async opex 
-        logger.info("✔️ hf_login already", extra={"mode": "cli"})
+        if HfApi.whoami():
+            logger.info("✔️ hf_login already", extra={"mode": "cli"})
+            #return True
+        else:
+            login()
+            sleep(5)  ##SMY pause for login. Helpful: pool async opex 
+            logger.info("✔️ hf_login already", extra={"mode": "cli"})
+            #return True
     except Exception as exc:
         # Respect common env var names; prefer explicit token arg when provided
-        fallback_token = token or os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
+        fallback_token = token or os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN") or get_token()
         if fallback_token:
             try:
                 login(token=fallback_token)

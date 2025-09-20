@@ -25,7 +25,7 @@ def create_outputdir(root: Union[str, Path], output_dir_string:str = None) -> Pa
     ## map to img_path. Opt to putting output within same output_md folder rather than individual source folders
     output_dir_string = output_dir_string if output_dir_string else "output_dir"  ##redundant SMY: default to outputdir in config file = "output_md"
     output_dir = Path("data") / output_dir_string  #"output_md"  ##SMY: concatenating output str with src Path
-    output_dir.mkdir(mode=0o2644, parents=True, exist_ok=True)
+    output_dir.mkdir(mode=0o2755, parents=True, exist_ok=True)   #,mode=0o2755
     return output_dir
 
 def find_file(file_name: str) -> Path:  #configparser.ConfigParser:
@@ -134,13 +134,12 @@ def check_create_logfile(filename: str, dir_path: Union[str, Path]="logs") -> Pa
     writable_dir = project_root / dir_path if isinstance(dir_path, str) else Path(dir_path)    
     
     try:
-        
-            writable_dir.mkdir(mode=0o2644, parents=True, exist_ok=True)
+        writable_dir.mkdir(mode=0o2755, parents=True, exist_ok=True)
     except PermissionError: ##[Errno 13] Permission denied: '/home/user/app/logs/app_logging_2025-09-18.log'
         warnings.warn("[Errno 13] Permission denied, possibly insufficient permission or Persistent Storage not enable: attempting chmod 0o2644")
         #writable_dir = Path(tempfile.gettempdir())    # 
-        writable_dir.mkdir(mode=0o2644, parents=True, exist_ok=True)
-        writable_dir.chmod(0o2644)
+        writable_dir.mkdir(mode=0o2755, parents=True, exist_ok=True)
+        writable_dir.chmod(0o2755)
         if not writable_dir.is_dir():
             warnings.warn(f"Working without log files in directory: {writable_dir}")
     
@@ -148,7 +147,7 @@ def check_create_logfile(filename: str, dir_path: Union[str, Path]="logs") -> Pa
     # `mkdir()` with `exist_ok=True` prevents a FileExistsError if the folder exists.
     logs_dir = writable_dir / dir_path  #project_root / dir_path
     if not logs_dir.is_dir():
-        logs_dir.mkdir(mode=0o2644, parents=True, exist_ok=True)
+        logs_dir.mkdir(mode=0o2755, parents=True, exist_ok=True)
     
     # 4. Create log file with a timestamp inside the new logs directory.
     # This ensures a unique log file is created for the day the script runs.
@@ -196,7 +195,7 @@ def check_create_file(filename: str, dir_path: Union[str, Path]="logs") -> Path:
     # `exist_ok=True` prevents an error if the directory already exists.
     dir_path = project_root / dir_path
     if not dir_path.is_dir():
-        dir_path.mkdir(parents=True, exist_ok=True, mode=0o2664)  #, mode=0o2644)
+        dir_path.mkdir(parents=True, exist_ok=True, mode=0o2755)  #, mode=0o2644)
     #dir_path.chmod(0) 
     
     file_path = dir_path / filename  # Concatenate directory and filename to get full path
@@ -344,7 +343,7 @@ def write_markdown(
         #md_path = Path("data\\pdf") / "output_md" / f"{src.stem}" / md_name  ##debug
         md_path = Path("data") / output_dir / f"{src.stem}" / md_name  ##debug
     ##SMY: [resolved] Permission Errno13 - https://stackoverflow.com/a/57454275
-    md_path.parent.mkdir(mode=0o2644, parents=True, exist_ok=True)  ##SMY: create nested md_path if not exists
+    md_path.parent.mkdir(mode=0o2755, parents=True, exist_ok=True)  ##SMY: create nested md_path if not exists
     md_path.parent.chmod(0)
 
     try:

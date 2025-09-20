@@ -99,8 +99,11 @@ class HFChatClient:
                 logger.warning("hf_login_failed", extra={"error": str(exc)})
                 # Silent fallback; client will still work if token is passed directly
                 #pass
-        '''        
-        login_huggingface(self.token) if not is_login_huggingface() else logger.log(level=20, msg=f"logged in to HF Hub already") ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.
+        '''
+        
+        login_huggingface(self.token) if not is_login_huggingface() else logger.log(level=20, msg=f"You are logged in to HF Hub already") ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.
+        ##SMY: TODO: Mapped with openai_client.py
+        #self.islogged_in = is_login_huggingface()
 
     @staticmethod
     def _normalise_history(history: list, system_message: str, latest_user_message: str) -> list[dict]:
