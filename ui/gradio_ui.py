@@ -547,7 +547,7 @@ def build_interface() -> gr.Blocks:
                 return gr.update(value="Sign in to HuggingFace 🤗")
             
             logout_status = gr.Markdown(visible=False)
-            with gr.Row:
+            with gr.Row():
                 hf_login_logout_btn = gr.LoginButton(value="Sign in to HuggingFace 🤗", logout_value="Logout of HF: ({})", variant="huggingface")
                 logout_btn = gr.Button("Logout from session and Hugging Face (inference) Client", variant="stop", )
 
