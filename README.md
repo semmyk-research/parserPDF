@@ -6,14 +6,14 @@ colorTo: purple
 sdk: gradio
 command: python main.py
 app_file: main.py
+hf_oauth: true
 python_version: 3.12
 license: mit
 pinned: true
 short_description: PDF & HTML parser to markdown
 models: [meta-llama/Llama-4-Maverick-17B-128E-Instruct, openai/gpt-oss-120b, openai/gpt-oss-20b]
 tags: [markdown, PDF, parser, converter, extractor]
-hf_oauth: true
-preload_from_hub: [https://huggingface.co/datalab-to/surya_layout, https://huggingface.co/datalab-to/surya_tablerec, huggingface.co/datalab-to/line_detector0, https://huggingface.co/tarun-menta/ocr_error_detection/blob/main/config.json]
+#preload_from_hub: [https://huggingface.co/datalab-to/surya_layout, https://huggingface.co/datalab-to/surya_tablerec, huggingface.co/datalab-to/line_detector0, https://huggingface.co/tarun-menta/ocr_error_detection/blob/main/config.json]
 owner: research-semmyk
 #---
 #
@@ -38,7 +38,7 @@ owner: research-semmyk
 version: 0.1.0
 readme: README.md
 requires-python: ">=3.12"
-dependencies: []
+#dependencies: []
 #owner: research-semmyk
 #preload_from_hub:
 #  - https://huggingface.co/datalab-to/surya_layout
