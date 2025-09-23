@@ -537,11 +537,14 @@ def build_interface() -> gr.Blocks:
         with gr.Accordion("🤗 HuggingFace Client Logout", open=True):  #, open=False):
             # Logout controls
             def do_logout():
-                #ok = docextractor.client.logout()
-                ok = docconverter.client.logout()
-                # Reset token textbox on successful logout
-                msg = "✅ Logged out of HuggingFace and cleared tokens. Remember to log out of HuggingFace completely." if ok else "⚠️ Logout failed."
-                return gr.update(value=""), gr.update(visible=True, value=msg), gr.update(value="Sign in to HuggingFace 🤗")
+                try:
+                    #ok = docextractor.client.logout()
+                    ok = docconverter.client.logout()
+                    # Reset token textbox on successful logout
+                    msg = "✅ Logged out of HuggingFace and cleared tokens. Remember to log out of HuggingFace completely." if ok else "⚠️ Logout failed."
+                    return gr.update(value=""), gr.update(visible=True, value=msg), gr.update(value="Sign in to HuggingFace 🤗")
+                except AttributeError:
+                    return gr.update(value=""), gr.update(visible=True, value=msg), gr.update(value="Sign in to HuggingFace 🤗")
             
             def custom_do_logout():
                 return gr.update(value="Sign in to HuggingFace 🤗")
