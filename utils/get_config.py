@@ -9,7 +9,7 @@ import traceback
 import sys
 from pathlib import Path
 #base_grandparent = Path(__file__).resolve().parent.parent
-grandparent_dir = Path('.').resolve() #.parent.parent
+grandparent_dir = Path('.').resolve() #.parent.parent      ##unreliable
 sys.path.insert(0, f"{grandparent_dir}")  #\\file_handler")
 ##end debug
 #'''

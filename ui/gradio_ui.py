@@ -11,10 +11,10 @@ import file_handler
 import file_handler.file_utils
 from utils.config import TITLE, DESCRIPTION, DESCRIPTION_PDF_HTML, DESCRIPTION_PDF, DESCRIPTION_HTML, DESCRIPTION_MD
 from utils.utils import is_dict, is_list_of_dicts
-from file_handler.file_utils import process_dicts_data, collect_pdf_paths, collect_html_paths, collect_markdown_paths, create_outputdir  ## should move to handling file
+from file_handler.file_utils import zip_processed_files, process_dicts_data, collect_pdf_paths, collect_html_paths, collect_markdown_paths, create_outputdir  ## should move to handling file
 #from llm.hf_client import HFChatClient  ## SMY: unused. See converters.extraction_converter
 from llm.provider_validator import is_valid_provider, suggest_providers
-from llm.llm_login import login_huggingface
+from llm.llm_login import is_loggedin_huggingface, login_huggingface
 
 from converters.extraction_converter import DocumentConverter as docconverter  #DocumentExtractor #as docextractor
 from converters.pdf_to_md import PdfToMarkdownConverter, init_worker
@@ -34,6 +34,7 @@ pdf2md_converter = PdfToMarkdownConverter()
 #md2pdf_converter = MarkdownToPdfConverter()
 
 # pool executor to convert files called by Gradio
+##SMY: TODO: future: refactor to gradio_process.py
 def convert_batch(
     pdf_files, #: list[str],
     pdf_files_count: int,
@@ -59,8 +60,9 @@ def convert_batch(
     #output_dir: Optional[Union[str, Path]] = "output_dir",
     output_dir_string: str = "output_dir_default",
     use_llm: bool = False,   #Optional[bool] = False,  #True,
-    page_range: str = None,  #Optional[str] = None,  
-) -> str:
+    page_range: str = None,  #Optional[str] = None,
+    tz_hours: str = None,
+    ): #-> str:
     """
     Handles the conversion process using multiprocessing.
     Spins up a pool and converts all uploaded files in parallel.
@@ -71,13 +73,18 @@ def convert_batch(
     # explicitly wrap file object in a list
     #pdf_files = pdf_files_wrap(pdf_files)   ##Flag:  deprecation
 
+    # Update the Gradio UI to improve user-friendly eXperience
+    #outputs=[process_button, log_output, files_individual_JSON, files_individual_downloads],
+    yield gr.update(interactive=False), f"Processing files...", {"process": "Processing files"}, f"__init__.py"
+    
     ## debug
     #logger.log(level=30, msg="pdf_files_inputs", extra={"input_arg[0]:": pdf_files[0]})
 
     #if not files:
     if not pdf_files or pdf_files is None:  ## Check if files is None. This handles the case where no files are uploaded.
         logger.log(level=30, msg="Initialising ProcessPool: No files uploaded.", extra={"pdf_files": pdf_files, "files_len": pdf_files_count})
-        return "Initialising ProcessPool: No files uploaded."
+        #outputs=[log_output, files_individual_JSON, files_individual_downloads],
+        return gr.update(interactive=True), "Initialising ProcessPool: No files uploaded.", {"Upload":"No files uploaded"}, f"__init__.py"
     
     # Get config values if not provided
     config_file = find_file("config.ini")  ##from file_handler.file_utils
@@ -117,11 +124,20 @@ def convert_batch(
     
     #global docextractor   ##SMY: deprecated.
     try:
+        ##SMY: might deprecate. To replace with oauth login from Gradio ui or integrate cleanly.
         login_huggingface(api_token)  ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.
+        
+        if is_loggedin_huggingface() and (api_token is None or api_token == ""):
+            api_token = get_token()
+        else:
+            login_huggingface()
+        # login: Update the Gradio UI to improve user-friendly eXperience
+        yield gr.update(interactive=False), f"login to HF: Processing files...", {"process": "Processing files"}, f"__init__.py"
+        
     except Exception as exc:  # Catch all exceptions
         tb = traceback.format_exc()
         logger.exception(f"✗ Error during login_huggingface → {exc}\n{tb}", exc_info=True) # Log the full traceback
-        return f"✗ An error occurred during login_huggingface → {exc}\n{tb}", f"Error: {exc}", f"Error: {exc}"  # return the exception message
+        return gr.update(interactive=True), f"✗ An error occurred during login_huggingface → {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"__init__.py"  # return the exception message
 
     try:
         # Create a pool with init_worker initialiser
@@ -146,38 +162,48 @@ def convert_batch(
                 #result_convert = pool.map(pdf2md_converter.convert_files, pdf_files, max_retries)
                 results = pool.map(pdf2md_converter.convert_files, pdf_files)  ##SMY iterables  #output_dir_string)
             except Exception as exc:
-                # Raise the exception to stop the Gradio app
-                #raise  # Re-raise the exception to halt execution
+                # Raise the exception to stop the Gradio app: exception to halt execution
                 logger.exception("Error during pooling file conversion", exc_info=True)  # Log the full traceback
                 traceback.print_exc()  # Print the exception traceback
-                return f"An error occurred during pool.map: {str(exc)}", f"Error: {exc}", f"Error: {exc}"  ## return the exception message
+                #return f"An error occurred during pool.map: {str(exc)}", f"Error: {exc}", f"Error: {exc}"  ## return the exception message
+                yield gr.update(interactive=True), f"An error occurred during pool.map: {str(exc)}", {"Error":f"Error: {exc}"}, f"__init__.py"  ## return the exception message
     
             #'''
-            logger.log(level=20, msg="ProcessPoolExecutor pool result:", extra={"results": str(results)})
-            logs = []
-            logs_files_images = []
-            #logs.extend(results)   ## performant pythonic
-            #logs = list[results]  ## 
-            logs = [result for result in results]  ## pythonic list comprehension
-            ## logs : [file , images , filepath, image_path]
-            
-            #logs_files_images = logs_files.extend(logs_images)  #zip(logs_files, logs_images)   ##SMY: in progress
-            for log in logs:
-                #logs_files_images.append(log.get("filepath", "Error or No filepath"))  # if all(isinstance(log, dict) for item in logs))
-                #logs_files_images.extend(list(image for image in log.get("image_path", "Error or no image_path")))
-
-                logs_files_images.append(log.get("filepath") if is_dict(logs) or isinstance(log, Path) else "Error or no image_path")  # isinstance(log, (dict, str))
-                logs_files_images.extend(list(image for image in log.get("image_path", "Error or no image_path")))
+            try:
+                logger.log(level=20, msg="ProcessPoolExecutor pool result:", extra={"results": str(results)})
+                logs = []
+                logs_files_images = []
+                #logs.extend(results)   ## performant pythonic
+                #logs = list[results]  ## 
+                logs = [result for result in results]  ## pythonic list comprehension
+                ## logs : [file , images , filepath, image_path]
                 
+                #logs_files_images = logs_files.extend(logs_images)  #zip(logs_files, logs_images)   ##SMY: in progress
+                logs_count =  0
+                #for log in logs:
+                for i, log in enumerate(logs):
+                    logs_files_images.append(log.get("filepath") if is_dict(log) or is_list_of_dicts(logs) else "Error or no file_path")  # isinstance(log, (dict, str))
+                    logs_files_images.extend(list(image for image in log.get("image_path", "Error or no image_path")))
+                    i_image = log.get("images", 0)
+                    # Update the Gradio UI to improve user-friendly eXperience
+                    yield gr.update(interactive=False), f"Processing files: {logs_files_images[logs_count]}", {"process": "Processing files"}, f"__init__.py"
+                    logs_count = i+i_image
+                
+                #logs_files_images.append(logs_filepath) ## to del
+                #logs_files_images.extend(logs_images)   ## to del
+            except Exception as exc:
+                logger.exception("Error during processing results logs → {exc}\n{tb}", exc_info=True)  # Log the full traceback
+                traceback.print_exc()  # Print the exception traceback
+                #return f"An error occurred during processing results logs: {str(exc)}\n{tb}", f"Error: {exc}", f"Error: {exc}"  ## return the exception message
+                yield gr.update(interactive=True), f"An error occurred during processing results logs: {str(exc)}\n{tb}", {"Error":f"Error: {exc}"}, f"__init__.py"  ## return the exception message
             
-            #logs_files_images.append(logs_filepath) ## to del
-            #logs_files_images.extend(logs_images)   ## to del
             #'''
     except Exception as exc:
         tb = traceback.format_exc()
         logger.exception(f"✗ Error during ProcessPoolExecutor → {exc}\n{tb}" , exc_info=True)  # Log the full traceback
         #traceback.print_exc()  # Print the exception traceback
-        return f"✗ An error occurred during ProcessPoolExecutor→ {exc}\n{tb}", f"Error: {exc}", f"Error: {exc}"  # return the exception message
+        #return gr.update(interactive=True), f"✗ An error occurred during ProcessPoolExecutor→ {exc}\n{tb}", f"Error: {exc}", f"Error: {exc}"  # return the exception message
+        yield gr.update(interactive=True), f"✗ An error occurred during ProcessPoolExecutor→ {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"__init__.py"  # return the exception message
 
     '''
     logger.log(level=20, msg="ProcessPoolExecutor pool result:", extra={"results": str(results)})
@@ -187,8 +213,25 @@ def convert_batch(
     logs = [result for result in results]  ## pythonic list comprehension
     '''
 
+    # Zip Processed md Files and images. Insert to first index
+    try:  ##from file_handler.file_utils
+        zipped_processed_files = zip_processed_files(root_dir=f"data/{output_dir_string}", file_paths=logs_files_images, tz_hours=tz_hours, date_format='%d%b%Y')
+        logs_files_images.insert(0, zipped_processed_files)
+        #logs_files_images.insert(1, "====================")
+        yield gr.update(interactive=False), f"Processing zip and files: {logs_files_images}", {"process": "Processing files"}, f"__init__.py"
+    
+    except Exception as exc:
+        tb = traceback.format_exc()
+        logger.exception(f"✗ Error during zipping processed files → {exc}\n{tb}" , exc_info=True)  # Log the full traceback
+        #traceback.print_exc()  # Print the exception traceback
+        #return gr.update(interactive=True), f"✗ An error occurred during zipping files → {exc}\n{tb}", f"Error: {exc}", f"Error: {exc}"  # return the exception message
+        yield gr.update(interactive=True), f"✗ An error occurred during zipping files → {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"__init__.py"  # return the exception message
+
+    
+    # Return processed files log
     try:
-        logs_return = file_handler.file_utils.process_dicts_data(logs)   #"\n".join(log for log in logs)  ##SMY outputs to gr.JSON component with no need for json.dumps(data, indent=)
+        ## # Convert logs list of dicts to formatted json string
+        logs_return_formatted_json_string = file_handler.file_utils.process_dicts_data(logs)   #"\n".join(log for log in logs)  ##SMY outputs to gr.JSON component with no need for json.dumps(data, indent=)
         #logs_files_images_return = "\n".join(path for path in logs_files_images)  ##TypeError: sequence item 0: expected str instance, WindowsPath found
         
         ##convert the List of Path objects to List of string for gr.Files output
@@ -196,13 +239,20 @@ def convert_batch(
         
         ## # Convert any Path objects to strings, but leave strings as-is
         logs_files_images_return = list(str(path) if isinstance(path, Path) else path for path in logs_files_images)
-        return logs_return, logs_return, logs_files_images_return
+        logger.log(level=20, msg="File conversion complete. Sending outcome to Gradio:", extra={"logs_files_image_return": str(logs_files_images_return)})  ## debug: FileNotFoundError: [WinError 2] The system cannot find the file specified: 'Error or no image_path'
+        
+        #outputs=[process_button, log_output, files_individual_JSON, files_individual_downloads],
         #return "\n".join(logs), "\n".join(logs_files_images)    #"\n".join(logs_files)
+        #return logs_return_formatted_json_string, logs_return_formatted_json_string, logs_files_images_return
+        #return gr.update(interactive=True), gr.update(value=logs_return_formatted_json_string), gr.update(value=logs_return_formatted_json_string, visible=True), gr.update(value=logs_files_images_return, visible=True)
+        yield  gr.update(interactive=True), gr.update(), gr.update(visible=True), gr.update(visible=True)
+        yield gr.update(interactive=True), logs_return_formatted_json_string, logs_return_formatted_json_string, logs_files_images_return
+        
     except Exception as exc:
         tb = traceback.format_exc()
         logger.exception(f"✗ Error during returning result logs → {exc}\n{tb}" , exc_info=True)  # Log the full traceback
         #traceback.print_exc()  # Print the exception traceback
-        return f"✗ An error occurred during returning result logs→ {exc}\n{tb}", f"Error: {exc}", f"Error: {exc}"  # return the exception message
+        return gr.update(interactive=True), f"✗ An error occurred during returning result logs→ {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"__init__.py"  # return the exception message
 
 
     #return "\n".join(log for log in logs), "\n".join(str(path) for path in logs_files_images)
@@ -346,6 +396,7 @@ def build_interface() -> gr.Blocks:
     }
     """
 
+    ##SMY: flagged; to move to file_handler.file_utils
     def is_file_with_extension(path_obj: Path) -> bool:
         """
         Checks if a pathlib.Path object is a file and has a non-empty extension.
@@ -353,6 +404,7 @@ def build_interface() -> gr.Blocks:
         path_obj = path_obj if isinstance(path_obj, Path) else Path(path_obj) if isinstance(path_obj, str) else None
         return path_obj.is_file() and bool(path_obj.suffix)
 
+    ##SMY: flagged; to move to file_handler.file_utils
     def accumulate_files(uploaded_files, current_state):
         """
         Accumulates newly uploaded files with the existing state.
@@ -396,18 +448,18 @@ def build_interface() -> gr.Blocks:
             gr.Markdown(f"#### **Backend Configuration**")
             system_message = gr.Textbox(
                 label="System Message",
-                lines=2
+                lines=2,
             )
             with gr.Row():
                 provider_dd = gr.Dropdown(
                     choices=["huggingface", "openai"],
                     label="Provider",
                     value="huggingface",
-                    #allow_custom_value=True
+                    #allow_custom_value=True,
                 )
                 backend_choice = gr.Dropdown(
                     choices=["model-id", "provider", "endpoint"],
-                    label="HF Backend Choice"
+                    label="HF Backend Choice",
                 )  ## SMY: ensure HFClient maps correctly 
                 model_tb = gr.Textbox(
                     label="Model ID",
@@ -415,7 +467,7 @@ def build_interface() -> gr.Blocks:
                 )
                 endpoint_tb = gr.Textbox(
                     label="Endpoint",
-                    placeholder="Optional custom endpoint"
+                    placeholder="Optional custom endpoint",
                 )
             with gr.Row():
                 max_token_sl = gr.Slider(
@@ -423,26 +475,29 @@ def build_interface() -> gr.Blocks:
                     minimum=1,
                     maximum=131172,  #65536,  #32768,  #16384,  #8192,
                     value=1024,  #512,
-                    step=1
+                    step=1,
                 )
                 temperature_sl = gr.Slider(
                     label="Temperature",
                     minimum=0.0,
                     maximum=1.0,
                     value=0.0,
-                    step=0.1  #0.01
+                    step=0.1,  #0.01
                 )
                 top_p_sl = gr.Slider(
                     label="Top-p",
                     minimum=0.0,
                     maximum=1.0,
                     value=0.1,
-                    step=0.1  #0.01
+                    step=0.1,  #0.01
                 )
-                stream_cb = gr.Checkbox(
-                    label="LLM Streaming",
-                    value=False
-                )
+                with gr.Column():
+                    stream_cb = gr.Checkbox(
+                        label="LLM Streaming",
+                        value=False,
+                    )
+                    #tz_hours_tb = gr.Textbox(value=None, label="TZ Hours", placeholder="Timezone in numbers", max_lines=1,)
+                    tz_hours_num = gr.Number(label="TZ Hours", placeholder="Timezone in numbers", min_width=5,)
             with gr.Row():
                 api_token_tb = gr.Textbox(
                     label="API Token [OPTIONAL]",
@@ -524,6 +579,7 @@ def build_interface() -> gr.Blocks:
         # Initialise gr.State
         state_max_workers = gr.State(4)  #max_workers_sl,
         state_max_retries = gr.State(2) #max_retries_sl,
+        state_tz_hours    = gr.State(value=None)
 
         def update_state_stored_value(new_component_input):
             """ Updates stored state: use for max_workers and max_retries """
@@ -532,30 +588,51 @@ def build_interface() -> gr.Blocks:
         # Update gr.State values on slider components change. NB: initial value of `gr.State` must be able to be deepcopied
         max_workers_sl.change(update_state_stored_value, inputs=max_workers_sl, outputs=state_max_workers)
         max_retries_sl.change(update_state_stored_value, inputs=max_retries_sl, outputs=state_max_retries)
+        tz_hours_num.change(update_state_stored_value, inputs=tz_hours_num, outputs=state_tz_hours)
 
 
         with gr.Accordion("🤗 HuggingFace Client Logout", open=True):  #, open=False):
             # Logout controls
-            def do_logout():
+            '''def do_logout():
                 try:
                     #ok = docextractor.client.logout()
                     ok = docconverter.client.logout()
                     # Reset token textbox on successful logout
-                    msg = "✅ Logged out of HuggingFace and cleared tokens. Remember to log out of HuggingFace completely." if ok else "⚠️ Logout failed."
-                    return gr.update(value=""), gr.update(visible=True, value=msg), gr.update(value="Sign in to HuggingFace 🤗")
+                    #msg = "✅ Logged out of HuggingFace and cleared tokens. Remember to log out of HuggingFace completely." if ok else "⚠️ Logout failed."
+                    msg = "✅ Session Cleared. Remember to browser." if ok else "⚠️ Logout failed."
+                    return gr.update(value=""), gr.update(visible=True, value=msg), gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value="Clear session")
                 except AttributeError:
-                    return gr.update(value=""), gr.update(visible=True, value=msg), gr.update(value="Sign in to HuggingFace 🤗")
-            
+                    msg = "⚠️ Logout."
+                    return gr.update(value=""), gr.update(visible=True, value=msg), gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value="Clear session", interactive=False)
+            '''
+            def do_logout_hf():
+                try:
+                    ok = docconverter.client.logout()
+                    # Reset token textbox on successful logout
+                    msg = "✅ Session Cleared. Remember to close browser." if ok else "⚠️ Logout & Session Cleared"
+                    #return gr.update(value=""), gr.update(visible=True, value=msg), gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value="Clear session", interactive=False)
+                    #return msg
+                    yield msg
+                except AttributeError:
+                    msg = "⚠️ Logout. No HF session"
+                    #return msg
+                    yield msg
+                
             def custom_do_logout():
-                return gr.update(value="Sign in to HuggingFace 🤗")
+                #do_logout()
+                #return gr.update(value="Sign in to HuggingFace 🤗")
+                msg = do_logout_hf()
+                #return gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value=""), gr.update(visible=True, value=msg)
+                yield gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value=""), gr.update(visible=True, value=msg)
             
             logout_status = gr.Markdown(visible=False)
             with gr.Row():
-                hf_login_logout_btn = gr.LoginButton(value="Sign in to HuggingFace 🤗", logout_value="Logout of HF: ({})", variant="huggingface")
-                logout_btn = gr.Button("Logout from session and Hugging Face (inference) Client", variant="stop", )
+                hf_login_logout_btn = gr.LoginButton(value="Sign in to HuggingFace 🤗", logout_value="Clear Session & Logout of HF: ({})", variant="huggingface")
+                #logout_btn = gr.Button("Logout from session and Hugging Face (inference) Client", variant="stop", )
 
-            hf_login_logout_btn.click(fn=custom_do_logout, inputs=None, outputs=hf_login_logout_btn)
-            logout_btn.click(fn=do_logout, inputs=None, outputs=[api_token_tb, logout_status, hf_login_logout_btn]) 
+            #hf_login_logout_btn.click(fn=custom_do_logout, inputs=None, outputs=hf_login_logout_btn)
+            hf_login_logout_btn.click(fn=custom_do_logout, inputs=None, outputs=[hf_login_logout_btn, api_token_tb, logout_status])
+            #logout_btn.click(fn=do_logout, inputs=None, outputs=[api_token_tb, logout_status, hf_login_logout_btn, logout_btn])
 
         
         # The gr.State component to hold the accumulated list of files
@@ -695,18 +772,26 @@ def build_interface() -> gr.Blocks:
             '''
 
         # A Files component to display individual processed files as download links
-        with gr.Accordion("⏬ View and Download processed files", open=False):
+        with gr.Accordion("⏬ View and Download processed files", open=True):  #, open=False
+            processed_file_state = gr.State([])
+
+            ##SMY: future
+            zip_btn = gr.DownloadButton("Download Zip file of all processed files", visible=False)   #.Button()
+            
+            # Placeholder to download zip file of processed files
+            download_zip_file = gr.File(label="Download processed Files (ZIP)", interactive=False, visible=False)  #, height="1"
+
             with gr.Row():
-                files_individual_JSON = gr.JSON(label="Serialised JSON list", max_height=250)
-                files_individual_downloads = gr.Files(label="Individual Processed Files")
+                files_individual_JSON = gr.JSON(label="Serialised JSON list", max_height=250, visible=False)
+                files_individual_downloads = gr.Files(label="Individual Processed Files", visible=False)
 
         ## Displays processed file paths
-        with gr.Accordion("View processing log", open=False):
+        with gr.Accordion("View processing log", open=True): #open=False):
             log_output = gr.Textbox(
                 label="Conversion Logs",
                 lines=5,
                 #max_lines=25,
-                interactive=False
+                #interactive=False
             )
         
         # file inputs
@@ -745,6 +830,7 @@ def build_interface() -> gr.Blocks:
             output_dir_tb,
             use_llm_cb,
             page_range_tb,
+            tz_hours_num,
         ]
 
         ## debug
@@ -756,12 +842,14 @@ def build_interface() -> gr.Blocks:
             #pdf_files.upload( 
                 fn=convert_batch,
                 inputs=inputs_arg,
-                outputs=[log_output, files_individual_JSON, files_individual_downloads],
+                outputs=[process_button, log_output, files_individual_JSON, files_individual_downloads],
             )
         except Exception as exc:
             tb = traceback.format_exc()
             logger.exception(f"✗ Error during process_button.click → {exc}\n{tb}", exc_info=True)
-            return f"✗ An error occurred during process_button.click → {exc}\n{tb}"            
+            msg = "✗ An error occurred during process_button.click"  # →
+            #return f"✗ An error occurred during process_button.click → {exc}\n{tb}"
+            return gr.update(interactive=True), f"{msg} → {exc}\n{tb}", f"{msg} → {exc}", f"{msg} → {exc}"
 
         ##gr.File .upload() event, fire only after a file has been uploaded
         # Event handler for the pdf file upload button
@@ -774,37 +862,9 @@ def build_interface() -> gr.Blocks:
         btn_pdf_convert.click(
         #pdf_files.upload( 
             fn=convert_batch,
-            outputs=[log_output, files_individual_downloads],
+            outputs=[btn_pdf_convert, log_output, files_individual_JSON, files_individual_downloads],
             inputs=inputs_arg, 
-        )
-        '''
-            inputs = [
-                pdf_files,
-                #pdf_files_wrap(pdf_files),  # wrap pdf_files in a list (if not already)            
-                pdf_files_count,
-                provider_dd,
-                model_tb,
-                hf_provider_dd,
-                endpoint_tb,
-                backend_choice,
-                system_message,
-                max_token_sl,
-                temperature_sl,
-                top_p_sl,
-                stream_cb,
-                api_token_tb,
-                #gr.State(4),   # max_workers
-                #gr.State(3),    # max_retries
-                openai_base_url_tb,
-                openai_image_format_dd,
-                state_max_workers, #gr.State(max_workers_sl),  #max_workers_sl,
-                state_max_retries, #gr.State(max_retries_sl), #max_retries_sl,
-                output_format_dd,
-                output_dir_tb,
-                use_llm_cb,
-                page_range_tb,
-            ],
-        '''   
+        ) 
         #    )
 
         # reuse the same business logic for HTML tab
@@ -818,7 +878,7 @@ def build_interface() -> gr.Blocks:
         btn_html_convert.click(
             fn=convert_batch,
             inputs=inputs_arg,
-            outputs=[log_output, files_individual_downloads]
+            outputs=[btn_html_convert,log_output, files_individual_JSON, files_individual_downloads]
         )
 
         def get_file_count(file_list):

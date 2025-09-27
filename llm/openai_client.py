@@ -7,7 +7,7 @@ from typing import Optional   #Iterable, Literal
 import traceback
 #from huggingface_hub import InferenceClient, login, logout as hf_logout
 
-from llm.llm_login import login_huggingface, is_login_huggingface
+from llm.llm_login import login_huggingface, is_loggedin_huggingface  #, is_login_huggingface
 
 import dotenv
 #dotenv.load_dotenv(".env")
@@ -42,15 +42,17 @@ class OpenAIChatClient:
             self.model_id = f"{model_id}:{hf_provider}" if hf_provider is not None else model_id  ##concatenate so HF can pipe to Hf provider
             self.hf_provider = hf_provider
             self.base_url = base_url  #"https://router.huggingface.co/v1"  #%22"  #HF API proxy
-            #self.token = api_token if api_token else None   ##debug
-            self.token = openai_api_key_env if openai_api_key_env else api_token  #dotenv.get_key(".env", "OPENAI_API_KEY")
+            self.token = api_token if api_token else openai_api_key_env   ##None   ##debug
+            #self.token = openai_api_key_env if openai_api_key_env else api_token  #dotenv.get_key(".env", "OPENAI_API_KEY")
             #self.token = token or os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")  ## not preferred
-            login_huggingface(self.token) if not is_login_huggingface() else logger.log(level=20, msg=f"You are logged in to HF Hub already") ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.
             #self.fake_token = api_token or "a1b2c3" #or os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
+            
             self.openai_api_key = self.token  #self.fake_token
             self.temperature = temperature
             self.top_p = top_p
-            self.islogged_in = is_login_huggingface()
+            self.islogged_in = is_loggedin_huggingface()
+            ##SMY: log in now handled at higher entry level.
+            #login_huggingface(self.token) if not is_loggedin_huggingface() else logger.log(level=20, msg=f"You are logged in to HF Hub already") ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.            
 
             logger.log(level=2, msg="initialised OpenAIChatClient:", extra={"base_url": self.base_url, "openai_api_key": self.openai_api_key})
             
@@ -60,7 +62,7 @@ class OpenAIChatClient:
             logger.exception(f'✗ OpenAI client_init_failed", extra={"error": str(exc)}\n{tb}', exc_info=True)
             raise RuntimeError(f"✗ Failed to initialise OpenAI client: {exc}\n{tb}")
       
-        #login_huggingface(self.token) if not is_login_huggingface() else logger.log(level=20, msg=f"logged in to HF Hub already") ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.
+        #login_huggingface(self.token) if not is_loggedin_huggingface() else logger.log(level=20, msg=f"logged in to HF Hub already") ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.
 
 ####IN PROGRESS
 # 

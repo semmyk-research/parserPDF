@@ -45,7 +45,7 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False)
 
 #def setup_logging(level: int = logging.INFO) -> None:  ## Causing non-stop logging on HF spaces
-def setup_logging(level: int = None) -> None:
+def setup_logging(level: int = None, tz_hours=None, date_format:str="%d%b%Y") -> None:  #'%Y-%m-%d
     """Configure root logger with JSON output to both stdout and file.
     
     Args:
@@ -66,7 +66,7 @@ def setup_logging(level: int = None) -> None:
     #file_handler = logging.FileHandler("logs/app_logging_scrap.log", mode="a", encoding="utf-8")
     #file_handler = logging.FileHandler("logs/app_logging.log", mode="a", encoding="utf-8")
     from file_handler.file_utils import check_create_logfile
-    file_handler = logging.FileHandler(check_create_logfile("app_logging.log"), mode="a", encoding="utf-8")
+    file_handler = logging.FileHandler(check_create_logfile(filename="app_logging.log", tz_hours=tz_hours, date_format=date_format), mode="a", encoding="utf-8")
     ## Getting filepermission error
     
     file_handler.setFormatter(JsonFormatter())

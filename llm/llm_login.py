@@ -1,4 +1,4 @@
-from huggingface_hub import HfApi, login, logout, get_token
+from huggingface_hub import HfApi, login, logout, get_token, whoami
 import os
 import traceback
 from time import sleep
@@ -8,6 +8,11 @@ from utils.logger import get_logger
 
 ## Get logger instance
 logger = get_logger(__name__)
+
+def disable_immplicit_token():
+    # Disable implicit token propagation for determinism
+    # Explicitly disable implicit token propagation; we rely on explicit auth or env var
+    os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
 
 def login_huggingface(token: Optional[str] = None):
     """
@@ -25,13 +30,15 @@ def login_huggingface(token: Optional[str] = None):
         
     # Disable implicit token propagation for determinism
     # Explicitly disable implicit token propagation; we rely on explicit auth or env var
-    os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
+    #os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
+    disable_immplicit_token()
 
     token = token
     # Privacy-first login: try interactive CLI first; fallback to provided/env token only if needed
     try:
-        if HfApi.whoami():
-            logger.info("✔️ hf_login already", extra={"mode": "cli"})
+        #if HfApi.whoami():   ##SMY requires 'self' = HfApi. Alternatively HfApi().whoami()
+        if whoami():  ##SMY: Call HF API to know "whoami".
+            logger.info("✔️ hf_login already", extra={"mode": "HF Oauth"})
             #return True
         else:
             login()
@@ -53,13 +60,15 @@ def login_huggingface(token: Optional[str] = None):
             # Silent fallback; client will still work if token is passed directly
             #pass
 
-def is_login_huggingface():
-    from huggingface_hub import HfApi
+#def is_login_huggingface():
+def is_loggedin_huggingface():
+    #from huggingface_hub import HfApi
     from huggingface_hub.utils import HfHubHTTPError
 
     try:
         HfApi().whoami()
         logger.log(level=20, msg=("✔️ You are logged in."), extra={"is_logged_in": True})
+        disable_immplicit_token()
         return True
     except HfHubHTTPError as exc:
         # A 401 status code indicates an authentication error.

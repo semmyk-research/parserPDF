@@ -6,7 +6,7 @@ import time
 import traceback
 from huggingface_hub import InferenceClient, login, logout as hf_logout
 
-from llm.llm_login import login_huggingface, is_login_huggingface
+from llm.llm_login import login_huggingface, is_loggedin_huggingface   #,is_login_huggingface
 
 from utils.logger import get_logger
 
@@ -101,9 +101,9 @@ class HFChatClient:
                 #pass
         '''
         
-        login_huggingface(self.token) if not is_login_huggingface() else logger.log(level=20, msg=f"You are logged in to HF Hub already") ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.
+        login_huggingface(self.token) if not is_loggedin_huggingface() else logger.log(level=20, msg=f"You are logged in to HF Hub already") ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.
         ##SMY: TODO: Mapped with openai_client.py
-        #self.islogged_in = is_login_huggingface()
+        #self.islogged_in = is_loggedin_huggingface()
 
     @staticmethod
     def _normalise_history(history: list, system_message: str, latest_user_message: str) -> list[dict]:

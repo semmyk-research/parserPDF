@@ -2,6 +2,9 @@
 #import os
 from pathlib import Path
 import sys
+import shutil
+import tempfile
+
 from itertools import chain
 from typing import List, Union, Any, Mapping
 from PIL import Image
@@ -95,8 +98,8 @@ def resolve_grandparent_object(gp_object:str):
         current_path = Path(sys.argv[0]).resolve()        
     except IndexError:        
         # Handle cases where sys.argv[0] might not exist (e.g., in some IDEs)
-        #current_path = Path(__file__).resolve()
-        current_path = Path('.').resolve()
+        current_path = Path(__file__).resolve()
+        #current_path = Path('.').resolve()    ##unreliable
 
     parent_dir = current_path.parent
     grandparent_dir = current_path.parent.parent
@@ -109,7 +112,7 @@ def resolve_grandparent_object(gp_object:str):
     #print(f"resolve: sys.path[1]:  {sys.path[1]}")  ##debug
 
 
-def check_create_logfile(filename: str, dir_path: Union[str, Path]="logs") -> Path:
+def check_create_logfile(filename: str, dir_path: Union[str, Path]="logs", tz_hours=None, date_format="%Y-%m-%d") -> Path:
     """
     check if log file exists, else create one and return the file path.
 
@@ -123,6 +126,7 @@ def check_create_logfile(filename: str, dir_path: Union[str, Path]="logs") -> Pa
     import datetime
     import warnings
     import tempfile
+    from utils.utils import get_time_now_str
 
     # 1. Get the path of the current script's parent directory (the project folder).
     # `__file__` is a special variable that holds the path to the current script.
@@ -151,7 +155,8 @@ def check_create_logfile(filename: str, dir_path: Union[str, Path]="logs") -> Pa
     
     # 4. Create log file with a timestamp inside the new logs directory.
     # This ensures a unique log file is created for the day the script runs.
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d")  #.strftime("%Y-%m-%d_%H-%M-%S")
+    #timestamp = datetime.datetime.now().strftime("%Y-%m-%d")  #.strftime("%Y-%m-%d_%H-%M-%S")
+    timestamp = get_time_now_str(tz_hours=tz_hours, date_format="%Y-%m-%d")
     log_file = logs_dir / f"{Path(filename).stem}_{timestamp}.log"
     
     # 5. Check if the file exists (it won't, if it's not the same day).
@@ -171,8 +176,33 @@ resolve_grandparent_object("file_handler")
 print(f'file: {check_create_logfile("app_logging.log")}')
 '''
 
-##SMY: to revisit. Make generic for any file apart from log files
-def check_create_file(filename: str, dir_path: Union[str, Path]="logs") -> Path:
+##SMY:DONE -  to revisit. Make generic for any file apart from log files
+def check_create_dir(dir_name: Union[str, Path]) -> Path:
+    """
+    check if directory exists, else create one and return the directory path.
+
+    Args:
+        directory_path (str): The path to the directory.
+        filename (str): The name of the directory to check/create.
+    Returns:
+        The pathlib.Path object for the directory
+    """
+
+    import warnings
+    
+    try:
+        dir_path = Path(dir_name)
+        #if dir_path.is_dir():
+        #    dir_path.mkdir(parents=True, exist_ok=True)  #, mode=0o2755)
+        dir_path.mkdir(parents=True, exist_ok=True)  #, mode=0o2755)
+    except PermissionError: ##[Errno 13] Permission denied: '/home/user/app/logs/app_logging_2025-09-18.log'
+        warnings.warn("[Errno 13] Permission denied, possibly insufficient permission or Persistent Storage not enable: attempting chmod 0o2644")
+        dir_path.mkdir(mode=0o2755, parents=True, exist_ok=True)
+        dir_path.chmod(0o2755)
+    
+    return dir_path
+
+def check_create_file(filename: Union[str, Path]) -> Path:
     """
     check if File exists, else create one and return the file path.
 
@@ -182,35 +212,124 @@ def check_create_file(filename: str, dir_path: Union[str, Path]="logs") -> Path:
     Returns:
         The pathlib.Path object for the file
     """
-    # Get project root
-    #project_root = Path(__file__).resolve().parent.parent  ##SMY:  `__file__` is a special variable pointing to current file`
-    project_root = Path(__file__).resolve().parents[1]      ##SMY: leverages parents. Get 2nd level
 
-    #file_dir = Path("logs") / file_dir if not isinstance(file_dir, Path) else Path(file_dir)
-    dir_path = dir_path if isinstance(dir_path, Path) else Path(dir_path)
+    import warnings
+    
+    try:
+        filename_path = Path(filename)
+        filename_path.touch(exist_ok=True)  #, mode=0o2755)
+    except PermissionError: ##[Errno 13] Permission denied: '/home/user/app/logs/app_logging_2025-09-18.log'
+        warnings.warn("[Errno 13] Permission denied, possibly insufficient permission or Persistent Storage not enable: attempting chmod 0o2644")
+        filename_path.touch(exist_ok=True, mode=0o2755)  # Creates an empty file if it doesn't exists
+        filename_path.chmod(0)
+    
+    return filename_path
 
-    # Ensure the directory exists
-    # Create the file parent directory, relative to the project root, if it doesn't exist.
-    # `parents=True` creates any missing parent directories.
-    # `exist_ok=True` prevents an error if the directory already exists.
-    dir_path = project_root / dir_path
-    if not dir_path.is_dir():
-        dir_path.mkdir(parents=True, exist_ok=True, mode=0o2755)  #, mode=0o2644)
-    #dir_path.chmod(0) 
-    
-    file_path = dir_path / filename  # Concatenate directory and filename to get full path
-    #print(f"file_path:  {file_path}")  ##debug
-    
-    #file_path.touch(exist_ok=True, mode=0o2664)  # Creates an empty file if it doesn't exists
+def zip_processed_files(root_dir: str, file_paths: list[str], tz_hours=None, date_format='%d%b%Y_%H-%M-%S') -> Path:
+    """
+    Creates a zip file from a list of file paths (strings) and returns the Path object.
+    It preserves the directory structure relative to the specified root directory.
 
-    #'''
-    if not file_path.exists():       # check if file doesn't exist
-        file_path.touch(exist_ok=True)  #, mode=0o2664)  # Creates an empty file if it doesn't exists
-        #file_dir.touch(mode=0o2644, exist_ok=True)  #, parents=True)  ##SMY: Note Permission Errno13 - https://stackoverflow.com/a/57454275
-        #file_dir.chmod(0)
-    #''' 
+    Args:
+        root_dir (str): The root directory against which relative paths are calculated.
+        file_paths (list[str]): A list of string paths to the files to be zipped.
+
+    Returns:
+        str(Path): The string of the Path object of the newly created zip file.
+    """
+
+    import zipfile
+    from file_handler import file_utils
+    from utils import utils
+
+    root_path = Path(root_dir)
+    if not root_path.is_dir():
+        raise ValueError(f"Root directory does not exist: {root_path}")
+
+    # Create a temporary directory in a location where Gradio can access it.
+    gradio_output_dir = Path(tempfile.gettempdir()) / "gradio_temp_output"
+    #gradio_output_dir.mkdir(exist_ok=True)
+    file_utils.check_create_dir(gradio_output_dir)
+    final_zip_path = gradio_output_dir / f"outputs_processed_{utils.get_time_now_str(tz_hours=tz_hours, date_format=date_format)}.zip"
+
+    # Use a context manager to create the zip file: use zipfile() opposed to shutil.make_archive
+    # 'w' mode creates a new file, overwriting if it already exists. 
+    zip_unprocessed = 0
+    with zipfile.ZipFile(final_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for file_path_str in file_paths:
+            file_path = Path(file_path_str)
+            if file_path.exists() and file_path.is_file():
+                # Calculate the relative path from the root_dir.
+                # The `arcname` parameter tells `zipfile` what the path inside the zip file should be.
+                arcname = file_path.relative_to(root_path)
+                zipf.write(file_path, arcname=arcname)
+            else:
+                #print(f"Warning: Skipping {file_path_str}, as it is not a valid file.")
+                zip_processed_files += 1  ##SMY:future - to be implemented
+
+    #return final_zip_path
+    return str(final_zip_path)
+
+
+def process_and_zip(input_dir_path):
+    """
+    Finds dynamic directories, copies files from a source directory to a temporary directory, zips it,
+    and returns the path to the zip file.
     
-    return file_path
+    Args:
+        input_dir_path (str): The path to the directory containing files to be processed.
+    
+    Returns:
+        pathlib.Path: The path to the generated zip file.
+    """
+    # Convert the input path to a Path object
+    #input_path = Path(input_dir_path)
+    parent_input_path = Path(input_dir_path)  #.parent
+
+    # Check if the input directory exists
+    if not parent_input_path.is_dir():
+        raise ValueError(f"Input directory does not exist: {parent_input_path}")
+        
+    # Create a temporary directory using a context manager
+    with tempfile.TemporaryDirectory() as temp_dir_str:
+        temp_dir_path = Path(temp_dir_str)
+        
+        # Define the path for the output structure inside the temporary directory
+        temp_output_path = temp_dir_path / "output_dir"
+        
+        # Copy all extracted files to the temporary directory
+        # We use semantic accurate and performant .iterdir than more robust glob to get all files and folders
+        
+        for input_subdir in parent_input_path.iterdir():
+            if input_subdir.is_dir():
+            # Create the corresponding subdirectory in the temp directory
+                temp_output_subdir = temp_output_path / input_subdir.name
+                #temp_output_subdir.mkdir(parents=True, exist_ok=True)   #, mode=0o2755)
+                #file_handler.file_utils.check_create_dir(temp_output_subdir)
+                check_create_dir(temp_output_subdir)
+
+                # Copy the files from the source subdirectory to the temp subdirectory
+                #for item_path in input_path.glob('*'):
+                for item_path in input_subdir.iterdir():    
+                    if item_path.is_dir():
+                        shutil.copytree(src=item_path, dst=temp_output_subdir / item_path.name)
+                    else:
+                        shutil.copy2(item_path, temp_output_subdir)
+        
+        # Create the zip file from the temporary directory
+        zip_base_name = temp_dir_path / "outputs_processed_files"
+        zip_file_path = shutil.make_archive(
+            base_name=str(zip_base_name),   ##zip file's name
+            format='zip',
+            root_dir=str( temp_output_path)  #(temp_dir_path)     ##exclude from the archive
+        )
+        # Manually move the completed zip file to the Gradio-managed temporary directory
+        final_zip_file_path = parent_input_path / Path(zip_file_path).name
+        shutil.move(src=zip_file_path, dst=final_zip_file_path)
+        
+    # The shutil function returns a string, so we convert it back to a Path object in gr.File
+    return str(final_zip_file_path)
+
 
 def is_file_with_extension(path_obj: Path) -> bool:
     """
