@@ -47,7 +47,7 @@ def login_huggingface(token: Optional[str] = None):
             #return True
     except Exception as exc:
         # Respect common env var names; prefer explicit token arg when provided
-        fallback_token = token or os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN") or get_token()
+        fallback_token = token if token else get_token() or os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
         if fallback_token:
             try:
                 login(token=fallback_token)

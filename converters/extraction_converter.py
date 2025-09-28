@@ -133,7 +133,7 @@ class DocumentConverter:
             llm_service_str = str(self.llm_service).split("'")[1]  ## SMY: split and slicing  ##Gets the string value
 
             # sets api_key required by Marker 
-            os.environ["OPENAI_API_KEY"] = self.openai_api_key or api_token  ## to handle Marker's assertion test on OpenAI
+            os.environ["OPENAI_API_KEY"] = api_token if api_token !='' or None else self.openai_api_key  ## to handle Marker's assertion test on OpenAI
             logger.log(level=20, msg="self.converter: instantiating MarkerConverter:", extra={"llm_service_str": llm_service_str, "api_token": api_token})  ##debug
             
             #self.converter: MarkerConverter = MarkerConverter(

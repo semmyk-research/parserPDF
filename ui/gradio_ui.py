@@ -43,7 +43,7 @@ def get_login_token( api_token_arg, oauth_token: gr.OAuthToken | None=None,):
         oauth_token = oauth_token 
     else: get_token()
     
-    return oauth_token
+    return oauth_token.token  ##token value
 
 # pool executor to convert files called by Gradio
 ##SMY: TODO: future: refactor to gradio_process.py
@@ -74,6 +74,7 @@ def convert_batch(
     use_llm: bool = False,   #Optional[bool] = False,  #True,
     page_range: str = None,  #Optional[str] = None,
     tz_hours: str = None,
+    oauth_token: gr.OAuthToken | None=None,
     ): #-> str:
     """
     Handles the conversion process using multiprocessing.
@@ -86,7 +87,7 @@ def convert_batch(
     yield gr.update(interactive=False), f"Commencing Processing ... Getting login", {"process": "Commencing Processing"}, f"__init__.py"
     
     # get token from logged-in user: 
-    api_token = get_login_token(api_token_gr)
+    api_token = get_login_token(api_token_arg=api_token_gr, oauth_token=oauth_token)
     ##SMY: Strictly debug. Must not be live
     logger.log(level=30, msg="Commencing: get_login_token", extra={"api_token]": api_token, "api_token_gr": api_token_gr})
 
@@ -262,8 +263,9 @@ def convert_batch(
         #return "\n".join(logs), "\n".join(logs_files_images)    #"\n".join(logs_files)
         #return logs_return_formatted_json_string, logs_return_formatted_json_string, logs_files_images_return
         #return gr.update(interactive=True), gr.update(value=logs_return_formatted_json_string), gr.update(value=logs_return_formatted_json_string, visible=True), gr.update(value=logs_files_images_return, visible=True)
-        yield  gr.update(interactive=True), gr.update(), gr.update(visible=True), gr.update(visible=True)
-        yield gr.update(interactive=True), logs_return_formatted_json_string, logs_return_formatted_json_string, logs_files_images_return
+        #yield  gr.update(interactive=True), gr.update(), gr.update(visible=True), gr.update(visible=True)
+        #yield gr.update(interactive=True), logs_return_formatted_json_string, logs_return_formatted_json_string, logs_files_images_return
+        return gr.update(interactive=True), logs_return_formatted_json_string, logs_return_formatted_json_string, logs_files_images_return
         
     except Exception as exc:
         tb = traceback.format_exc()
@@ -450,12 +452,6 @@ def build_interface() -> gr.Blocks:
         
         return updated_files, message
 
-    def clear_state():
-        """
-        Clears the accumulated state of uloaded file list, output textbox, files and directory upload.
-        """
-        return [], "Files list cleared.", [], []
-
     # with gr.Blocks(title=TITLE) as demo
     with gr.Blocks(title=TITLE, css=custom_css) as demo:
         gr.Markdown(f"## {DESCRIPTION}")
@@ -584,11 +580,12 @@ def build_interface() -> gr.Blocks:
 
         with gr.Accordion("🤗 HuggingFace Client Logout", open=True):  #, open=False):
             # Logout controls
-
-            logout_status = gr.Markdown(visible=True)  #visible=False)
             with gr.Row():
-                hf_login_logout_btn = gr.LoginButton(value="Sign in to HuggingFace 🤗", logout_value="Clear Session & Logout of HF: ({})", variant="huggingface")
-                #logout_btn = gr.Button("Logout from session and Hugging Face (inference) Client", variant="stop", )
+                #hf_login_logout_btn = gr.LoginButton(value="Sign in to HuggingFace 🤗", logout_value="Clear Session & Logout of HF: ({})", variant="huggingface")
+                hf_login_logout_btn = gr.LoginButton(value="Sign in to HuggingFace 🤗", logout_value="Logout of HF: ({}) 🤗", variant="huggingface")
+                #logout_btn = gr.Button("Logout from session & HF (inference) Client", variant="stop", )
+
+            logout_status_md = gr.Markdown(visible=True)  #visible=False)
         
         # The gr.State component to hold the accumulated list of files
         uploaded_file_list = gr.State([])   ##NB: initial value of `gr.State` must be able to be deepcopied
@@ -759,7 +756,35 @@ def build_interface() -> gr.Blocks:
                 )
         hf_provider_dd.change(on_provider_change, inputs=hf_provider_dd, outputs=None)
 
+        
         # HuggingFace Client Logout
+        '''def get_login_token(state_api_token_arg, oauth_token: gr.OAuthToken | None=None):
+            #oauth_token = get_token() if oauth_token is not None else state_api_token
+            #oauth_token = oauth_token if oauth_token else state_api_token_arg
+            if oauth_token:
+                print(oauth_token)
+                return oauth_token
+            else:
+                oauth_token = get_token()
+                print(oauth_token)
+                return oauth_token'''
+        #'''
+        def do_logout():    ##SMY: use with clear_state() as needed
+            try:
+                #ok = docextractor.client.logout()
+                ok = docconverter.client.logout()
+                # Reset token textbox on successful logout
+                #msg = "✅ Logged out of HuggingFace and cleared tokens. Remember to log out of HuggingFace completely." if ok else "⚠️ Logout failed."
+                msg = "✅ Session Cleared. Remember to close browser." if ok else "⚠️ HF client closing failed."
+                
+                return msg
+                #return gr.update(value=""), gr.update(visible=True, value=msg), gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value="Clear session")
+            except AttributeError:
+                msg = "⚠️ HF client closing failed."
+                
+                return msg
+                #return gr.update(value=""), gr.update(visible=True, value=msg), gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value="Clear session", interactive=False)
+        #'''    
         def do_logout_hf():
             try:
                 ok = docconverter.client.logout()
@@ -772,18 +797,9 @@ def build_interface() -> gr.Blocks:
                 msg = "⚠️ Logout. No HF session"
                 return msg
                 #yield msg   ## generator for string
-        '''def get_login_token(state_api_token_arg, oauth_token: gr.OAuthToken | None=None):
-            #oauth_token = get_token() if oauth_token is not None else state_api_token
-            #oauth_token = oauth_token if oauth_token else state_api_token_arg
-            if oauth_token:
-                print(oauth_token)
-                return oauth_token
-            else:
-                oauth_token = get_token()
-                print(oauth_token)
-                return oauth_token'''
             
-        def custom_do_logout(hf_login_logout_btn_arg: gr.LoginButton, state_api_token_arg: gr.State):
+        #def custom_do_logout(hf_login_logout_btn_arg: gr.LoginButton, state_api_token_arg: gr.State):
+        def custom_do_logout():
             #global state_api_token 
             '''  ##SMY: TO DELETE
             try:
@@ -797,12 +813,25 @@ def build_interface() -> gr.Blocks:
             msg = do_logout_hf()
             ##debug
             #msg = "✅ Session Cleared. Remember to close browser." if "Clear Session & Logout of HF" in hf_login_logout_btn else "⚠️ Logout"  # & Session Cleared"
-            return gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value=""), gr.update(visible=True, value=msg), state_api_token_arg
+            return gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value=""), gr.update(visible=True, value=msg)  #, state_api_token_arg
             #yield gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value=""), gr.update(visible=True, value=msg)
 
+        # Files, status, session clearing
+        def clear_state():
+            """
+            Clears the accumulated state of uploaded file list, output textbox, files and directory upload.
+            """
+            #msg = f"Files list cleared: {do_logout()}"  ## use as needed
+            msg = f"Files list cleared."
+            yield [], msg, '', ''
+            #return [], f"Files list cleared.", [], []
+
         #hf_login_logout_btn.click(fn=custom_do_logout, inputs=None, outputs=hf_login_logout_btn)
-        hf_login_logout_btn.click(fn=custom_do_logout, inputs=[hf_login_logout_btn, state_api_token], outputs=[hf_login_logout_btn, api_token_tb, logout_status, state_api_token])
-        #logout_btn.click(fn=do_logout, inputs=None, outputs=[api_token_tb, logout_status, hf_login_logout_btn, logout_btn])
+        ##unused
+        ###hf_login_logout_btn.click(fn=custom_do_logout, inputs=[hf_login_logout_btn, state_api_token], outputs=[hf_login_logout_btn, api_token_tb, logout_status_md, state_api_token])
+        ###logout_btn.click(fn=do_logout, inputs=None, outputs=[api_token_tb, logout_status_md, hf_login_logout_btn, logout_btn])
+        #logout_btn.click(fn=clear_state, inputs=None, outputs=[uploaded_file_list, output_textbox, log_output, api_token_tb])
+        hf_login_logout_btn.click(fn=custom_do_logout, inputs=None, outputs=[hf_login_logout_btn, api_token_tb, logout_status_md])  #, state_api_token])
 
         # --- PDF & HTML → Markdown tab ---
         # Event handler for the multiple file upload button
