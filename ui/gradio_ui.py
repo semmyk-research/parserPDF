@@ -89,7 +89,7 @@ def convert_batch(
     # get token from logged-in user: 
     api_token = get_login_token(api_token_arg=api_token_gr, oauth_token=oauth_token)
     ##SMY: Strictly debug. Must not be live
-    logger.log(level=30, msg="Commencing: get_login_token", extra={"api_token]": api_token, "api_token_gr": api_token_gr})
+    #logger.log(level=30, msg="Commencing: get_login_token", extra={"api_token]": api_token, "api_token_gr": api_token_gr})
 
     try:
         ##SMY: might deprecate. To replace with oauth login from Gradio ui or integrate cleanly.
