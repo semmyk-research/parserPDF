@@ -61,13 +61,19 @@ def login_huggingface(token: Optional[str] = None):
             #pass
 
 #def is_login_huggingface():
-def is_loggedin_huggingface():
+def is_loggedin_huggingface(token: Optional[str] = None):
     #from huggingface_hub import HfApi
     from huggingface_hub.utils import HfHubHTTPError
+    from huggingface_hub.errors import LocalTokenNotFoundError
 
-    try:
+    try:  ##SMY: TOOD: investigate if still needed given oauth_token: gr.OAuthToken
         HfApi().whoami()
-        logger.log(level=20, msg=("✔️ You are logged in."), extra={"is_logged_in": True})
+        logger.log(level=20, msg=("✔️ HfApi().whoami(): You are logged in."), extra={"is_logged_in": True})
+        disable_immplicit_token()
+        return True
+    except LocalTokenNotFoundError as exc: #Token is required (`token=True`), but no token found
+        HfApi().whoami(token)
+        logger.log(level=20, msg=("✔️ HfApi().whoami(): You are logged in with token."), extra={"is_logged_in": True})
         disable_immplicit_token()
         return True
     except HfHubHTTPError as exc:
@@ -81,4 +87,5 @@ def is_loggedin_huggingface():
             logger.exception(f"✗ An unexpected HTTP error occurred: → {exc}\n{tb}", exc_info=True)
             #raise RuntimeError(f"✗ An unexpected HTTP error occurred: → {exc}\n{tb}") from exc
             return False
+    finally: return False
         
