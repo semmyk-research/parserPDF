@@ -82,17 +82,20 @@ def convert_batch(
     Receives Gradio component values, starting with the list of uploaded file paths
     """
 
+    # login: Update the Gradio UI to improve user-friendly eXperience - commencing
+    yield gr.update(interactive=False), f"Commencing Processing ... Getting login", {"process": "Commencing Processing"}, f"__init__.py"
+    
     # get token from logged-in user: 
     api_token = get_login_token(api_token_gr)
 
     try:
         ##SMY: might deprecate. To replace with oauth login from Gradio ui or integrate cleanly.
-        login_huggingface(api_token)  ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.
+        #login_huggingface(api_token)  ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.
         
         if is_loggedin_huggingface() and (api_token is None or api_token == ""):
             api_token = get_token()   ##SMY: might be redundant
         else:
-            login_huggingface()
+            login_huggingface(api_token)
         # login: Update the Gradio UI to improve user-friendly eXperience
         yield gr.update(interactive=False), f"login to HF: Processing files...", {"process": "Processing files"}, f"__init__.py"
         
@@ -792,7 +795,7 @@ def build_interface() -> gr.Blocks:
             msg = do_logout_hf()
             ##debug
             #msg = "✅ Session Cleared. Remember to close browser." if "Clear Session & Logout of HF" in hf_login_logout_btn else "⚠️ Logout"  # & Session Cleared"
-            return gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value=""), gr.update(visible=True, value=msg), state_api_token_get
+            return gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value=""), gr.update(visible=True, value=msg), state_api_token_arg
             #yield gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value=""), gr.update(visible=True, value=msg)
 
         #hf_login_logout_btn.click(fn=custom_do_logout, inputs=None, outputs=hf_login_logout_btn)

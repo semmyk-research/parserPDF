@@ -41,7 +41,7 @@ def login_huggingface(token: Optional[str] = None):
             logger.info("✔️ hf_login already", extra={"mode": "HF Oauth"})
             #return True
         else:
-            login()
+            login()   ##SMY: Not visible/interactive to users onH Space. #limitation
             sleep(5)  ##SMY pause for login. Helpful: pool async opex 
             logger.info("✔️ hf_login already", extra={"mode": "cli"})
             #return True
@@ -54,7 +54,7 @@ def login_huggingface(token: Optional[str] = None):
                 token = fallback_token
                 logger.info("✔️ hf_login through fallback", extra={"mode": "token"})  ##SMY: This only displays if token is provided
             except Exception as exc_token:
-                logger.warning("❌ hf_login_failed", extra={"error": str(exc_token)})
+                logger.warning("❌ hf_login_failed through fallback", extra={"error": str(exc_token)})
         else:
             logger.warning("❌ hf_login_failed", extra={"error": str(exc)})
             # Silent fallback; client will still work if token is passed directly
