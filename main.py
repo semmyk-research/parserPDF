@@ -19,4 +19,4 @@ if __name__ == "__main__":
 
     demo = build_interface()
     #demo.launch(debug=True, show_error=True ,ssr_mode=True)  #(share=True)  # share=True for public link; remove in production
-    demo.launch(debug=True, show_error=True)
+    demo.launch(debug=True, show_error=True, ssr_mode=False)

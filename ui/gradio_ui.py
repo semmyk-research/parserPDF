@@ -33,6 +33,18 @@ pdf2md_converter = PdfToMarkdownConverter()
 #html2md_converter = HtmlToMarkdownConverter()
 #md2pdf_converter = MarkdownToPdfConverter()
 
+
+def get_login_token( api_token_arg, oauth_token: gr.OAuthToken | None=None,):
+    """ Use user's supplied token or Get token from logged-in users, else from token stored on the  machine. Return token"""
+    #oauth_token = get_token() if oauth_token is not None else api_token_arg
+    if api_token_arg != '':  # or not None:  #| None:
+        oauth_token = api_token_arg
+    elif oauth_token:
+        oauth_token = oauth_token 
+    else: get_token()
+    
+    return oauth_token
+
 # pool executor to convert files called by Gradio
 ##SMY: TODO: future: refactor to gradio_process.py
 def convert_batch(
@@ -49,7 +61,7 @@ def convert_batch(
     temperature: float,
     top_p: float,
     stream: bool,
-    api_token: str,
+    api_token_gr: str,
     #max_workers: int,
     #max_retries: int,
     openai_base_url: str = "https://router.huggingface.co/v1",
@@ -70,13 +82,26 @@ def convert_batch(
     Receives Gradio component values, starting with the list of uploaded file paths
     """
 
-    # explicitly wrap file object in a list
-    #pdf_files = pdf_files_wrap(pdf_files)   ##Flag:  deprecation
+    # get token from logged-in user: 
+    api_token = get_login_token(api_token_gr)
 
-    # Update the Gradio UI to improve user-friendly eXperience
-    #outputs=[process_button, log_output, files_individual_JSON, files_individual_downloads],
-    yield gr.update(interactive=False), f"Processing files...", {"process": "Processing files"}, f"__init__.py"
-    
+    try:
+        ##SMY: might deprecate. To replace with oauth login from Gradio ui or integrate cleanly.
+        login_huggingface(api_token)  ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.
+        
+        if is_loggedin_huggingface() and (api_token is None or api_token == ""):
+            api_token = get_token()   ##SMY: might be redundant
+        else:
+            login_huggingface()
+        # login: Update the Gradio UI to improve user-friendly eXperience
+        yield gr.update(interactive=False), f"login to HF: Processing files...", {"process": "Processing files"}, f"__init__.py"
+        
+    except Exception as exc:  # Catch all exceptions
+        tb = traceback.format_exc()
+        logger.exception(f"✗ Error during login_huggingface → {exc}\n{tb}", exc_info=True) # Log the full traceback
+        return gr.update(interactive=True), f"✗ An error occurred during login_huggingface → {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"__init__.py"  # return the exception message
+
+
     ## debug
     #logger.log(level=30, msg="pdf_files_inputs", extra={"input_arg[0]:": pdf_files[0]})
 
@@ -124,22 +149,6 @@ def convert_batch(
     
     #global docextractor   ##SMY: deprecated.
     try:
-        ##SMY: might deprecate. To replace with oauth login from Gradio ui or integrate cleanly.
-        login_huggingface(api_token)  ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.
-        
-        if is_loggedin_huggingface() and (api_token is None or api_token == ""):
-            api_token = get_token()
-        else:
-            login_huggingface()
-        # login: Update the Gradio UI to improve user-friendly eXperience
-        yield gr.update(interactive=False), f"login to HF: Processing files...", {"process": "Processing files"}, f"__init__.py"
-        
-    except Exception as exc:  # Catch all exceptions
-        tb = traceback.format_exc()
-        logger.exception(f"✗ Error during login_huggingface → {exc}\n{tb}", exc_info=True) # Log the full traceback
-        return gr.update(interactive=True), f"✗ An error occurred during login_huggingface → {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"__init__.py"  # return the exception message
-
-    try:
         # Create a pool with init_worker initialiser
         with ProcessPoolExecutor(
             max_workers=max_workers,
@@ -148,10 +157,13 @@ def convert_batch(
         ) as pool:
             #global docextractor
             logger.log(level=30, msg="Initialising ProcessPool: pool:", extra={"pdf_files": pdf_files, "files_len": len(pdf_files), "model_id": model_id, "output_dir": output_dir_string})  #pdf_files_count
-            
+
+            # Update the Gradio UI to improve user-friendly eXperience
+            #outputs=[process_button, log_output, files_individual_JSON, files_individual_downloads],
+            yield gr.update(interactive=False), f"Starting ProcessPool: Processing files...", {"process": "Processing files ..."}, f"__init__.py"
+                        
             # Map the files (pdf_files) to the conversion function (pdf2md_converter.convert_file)
             # The 'docconverter' argument is implicitly handled by the initialiser
-            
             #futures = [pool.map(pdf2md_converter.convert_files, f) for f in pdf_files]
             #logs = [f.result() for f in as_completed(futures)]
             #futures = [pool.submit(pdf2md_converter.convert_files, file) for file in pdf_files]
@@ -511,18 +523,6 @@ def build_interface() -> gr.Blocks:
                     allow_custom_value=True,  # let users type new providers as they appear
                 )
 
-        # Validate provider on change; warn but allow continue
-        def on_provider_change(provider_value: str):
-            if not provider_value:
-                return
-            if not is_valid_provider(provider_value):
-                sug = suggest_providers(provider_value)
-                extra = f" Suggestions: {', '.join(sug)}." if sug else ""
-                gr.Warning(
-                    f"Provider not on HF provider list. See https://huggingface.co/docs/inference-providers/index.{extra}"
-                )
-        hf_provider_dd.change(on_provider_change, inputs=hf_provider_dd, outputs=None)
-
         # Clean UI: Model parameters hidden in collapsible accordion
         with gr.Accordion("⚙️ Marker Settings", open=False):
             gr.Markdown(f"#### **Marker Configuration**")
@@ -576,64 +576,14 @@ def build_interface() -> gr.Blocks:
                     max_lines=1,
                 )
 
-        # Initialise gr.State
-        state_max_workers = gr.State(4)  #max_workers_sl,
-        state_max_retries = gr.State(2) #max_retries_sl,
-        state_tz_hours    = gr.State(value=None)
-
-        def update_state_stored_value(new_component_input):
-            """ Updates stored state: use for max_workers and max_retries """
-            return new_component_input
-        
-        # Update gr.State values on slider components change. NB: initial value of `gr.State` must be able to be deepcopied
-        max_workers_sl.change(update_state_stored_value, inputs=max_workers_sl, outputs=state_max_workers)
-        max_retries_sl.change(update_state_stored_value, inputs=max_retries_sl, outputs=state_max_retries)
-        tz_hours_num.change(update_state_stored_value, inputs=tz_hours_num, outputs=state_tz_hours)
-
 
         with gr.Accordion("🤗 HuggingFace Client Logout", open=True):  #, open=False):
             # Logout controls
-            '''def do_logout():
-                try:
-                    #ok = docextractor.client.logout()
-                    ok = docconverter.client.logout()
-                    # Reset token textbox on successful logout
-                    #msg = "✅ Logged out of HuggingFace and cleared tokens. Remember to log out of HuggingFace completely." if ok else "⚠️ Logout failed."
-                    msg = "✅ Session Cleared. Remember to browser." if ok else "⚠️ Logout failed."
-                    return gr.update(value=""), gr.update(visible=True, value=msg), gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value="Clear session")
-                except AttributeError:
-                    msg = "⚠️ Logout."
-                    return gr.update(value=""), gr.update(visible=True, value=msg), gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value="Clear session", interactive=False)
-            '''
-            def do_logout_hf():
-                try:
-                    ok = docconverter.client.logout()
-                    # Reset token textbox on successful logout
-                    msg = "✅ Session Cleared. Remember to close browser." if ok else "⚠️ Logout & Session Cleared"
-                    #return gr.update(value=""), gr.update(visible=True, value=msg), gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value="Clear session", interactive=False)
-                    #return msg
-                    yield msg
-                except AttributeError:
-                    msg = "⚠️ Logout. No HF session"
-                    #return msg
-                    yield msg
-                
-            def custom_do_logout():
-                #do_logout()
-                #return gr.update(value="Sign in to HuggingFace 🤗")
-                msg = do_logout_hf()
-                #return gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value=""), gr.update(visible=True, value=msg)
-                yield gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value=""), gr.update(visible=True, value=msg)
-            
-            logout_status = gr.Markdown(visible=False)
+
+            logout_status = gr.Markdown(visible=True)  #visible=False)
             with gr.Row():
                 hf_login_logout_btn = gr.LoginButton(value="Sign in to HuggingFace 🤗", logout_value="Clear Session & Logout of HF: ({})", variant="huggingface")
                 #logout_btn = gr.Button("Logout from session and Hugging Face (inference) Client", variant="stop", )
-
-            #hf_login_logout_btn.click(fn=custom_do_logout, inputs=None, outputs=hf_login_logout_btn)
-            hf_login_logout_btn.click(fn=custom_do_logout, inputs=None, outputs=[hf_login_logout_btn, api_token_tb, logout_status])
-            #logout_btn.click(fn=do_logout, inputs=None, outputs=[api_token_tb, logout_status, hf_login_logout_btn, logout_btn])
-
         
         # The gr.State component to hold the accumulated list of files
         uploaded_file_list = gr.State([])   ##NB: initial value of `gr.State` must be able to be deepcopied
@@ -686,26 +636,6 @@ def build_interface() -> gr.Blocks:
                 process_button = gr.Button("Process All Uploaded Files", variant="primary")
                 clear_button = gr.Button("Clear All Uploads", variant="secondary")
 
-            # Event handler for the multiple file upload button
-            file_btn.upload(
-                fn=accumulate_files,
-                inputs=[file_btn, uploaded_file_list],
-                outputs=[uploaded_file_list, output_textbox]
-            )
-
-            # Event handler for the directory upload button
-            dir_btn.upload(
-                fn=accumulate_files,
-                inputs=[dir_btn, uploaded_file_list],
-                outputs=[uploaded_file_list, output_textbox]
-            )
-
-            # Event handler for the "Clear" button
-            clear_button.click(
-                fn=clear_state,
-                inputs=None,
-                outputs=[uploaded_file_list, output_textbox, file_btn, dir_btn],
-            )
 
         # --- PDF → Markdown tab ---
         with gr.Tab(" 📄 PDF ➜ Markdown (Flag for DEPRECATION)", interactive=False, visible=True):  #False
@@ -773,8 +703,7 @@ def build_interface() -> gr.Blocks:
 
         # A Files component to display individual processed files as download links
         with gr.Accordion("⏬ View and Download processed files", open=True):  #, open=False
-            processed_file_state = gr.State([])
-
+            
             ##SMY: future
             zip_btn = gr.DownloadButton("Download Zip file of all processed files", visible=False)   #.Button()
             
@@ -793,7 +722,105 @@ def build_interface() -> gr.Blocks:
                 #max_lines=25,
                 #interactive=False
             )
+
+        # Initialise gr.State
+        state_max_workers = gr.State(4)  #max_workers_sl,
+        state_max_retries = gr.State(2) #max_retries_sl,
+        state_tz_hours    = gr.State(value=None)
+        state_api_token   = gr.State(None)
+        processed_file_state = gr.State([])   ##SMY: future: View and Download processed files
+
+
+        def update_state_stored_value(new_component_input):
+            """ Updates stored state: use for max_workers and max_retries """
+            return new_component_input
         
+        # Update gr.State values on slider components change. NB: initial value of `gr.State` must be able to be deepcopied
+        max_workers_sl.change(update_state_stored_value, inputs=max_workers_sl, outputs=state_max_workers)
+        max_retries_sl.change(update_state_stored_value, inputs=max_retries_sl, outputs=state_max_retries)
+        tz_hours_num.change(update_state_stored_value, inputs=tz_hours_num, outputs=state_tz_hours)
+        api_token_tb.change(update_state_stored_value, inputs=api_token_tb, outputs=state_api_token)
+        
+
+        # LLM Setting: Validate provider on change; warn but allow continue
+        def on_provider_change(provider_value: str):
+            if not provider_value:
+                return
+            if not is_valid_provider(provider_value):
+                sug = suggest_providers(provider_value)
+                extra = f" Suggestions: {', '.join(sug)}." if sug else ""
+                gr.Warning(
+                    f"Provider not on HF provider list. See https://huggingface.co/docs/inference-providers/index.{extra}"
+                )
+        hf_provider_dd.change(on_provider_change, inputs=hf_provider_dd, outputs=None)
+
+        # HuggingFace Client Logout
+        def do_logout_hf():
+            try:
+                ok = docconverter.client.logout()
+                # Reset token textbox on successful logout
+                msg = "✅ Session Cleared. Remember to close browser." if ok else "⚠️ Logout & Session Cleared"
+                #return gr.update(value=""), gr.update(visible=True, value=msg), gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value="Clear session", interactive=False)
+                return msg
+                #yield msg   ## generator for string
+            except AttributeError:
+                msg = "⚠️ Logout. No HF session"
+                return msg
+                #yield msg   ## generator for string
+        '''def get_login_token(state_api_token_arg, oauth_token: gr.OAuthToken | None=None):
+            #oauth_token = get_token() if oauth_token is not None else state_api_token
+            #oauth_token = oauth_token if oauth_token else state_api_token_arg
+            if oauth_token:
+                print(oauth_token)
+                return oauth_token
+            else:
+                oauth_token = get_token()
+                print(oauth_token)
+                return oauth_token'''
+            
+        def custom_do_logout(hf_login_logout_btn_arg: gr.LoginButton, state_api_token_arg: gr.State):
+            #global state_api_token 
+            '''  ##SMY: TO DELETE
+            try:
+                state_api_token_get= get_token() if "Clear Session & Logout of HF" in hf_login_logout_btn_arg.value else state_api_token_arg.value
+            except AttributeError:
+                #state_api_token_get= get_token() if "Clear Session & Logout of HF" in hf_login_logout_btn_arg else state_api_token_arg
+                state_api_token_get = get_login_token(state_api_token_arg)
+            '''
+            #do_logout()
+            #return gr.update(value="Sign in to HuggingFace 🤗")
+            msg = do_logout_hf()
+            ##debug
+            #msg = "✅ Session Cleared. Remember to close browser." if "Clear Session & Logout of HF" in hf_login_logout_btn else "⚠️ Logout"  # & Session Cleared"
+            return gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value=""), gr.update(visible=True, value=msg), state_api_token_get
+            #yield gr.update(value="Sign in to HuggingFace 🤗"), gr.update(value=""), gr.update(visible=True, value=msg)
+
+        #hf_login_logout_btn.click(fn=custom_do_logout, inputs=None, outputs=hf_login_logout_btn)
+        hf_login_logout_btn.click(fn=custom_do_logout, inputs=[hf_login_logout_btn, state_api_token], outputs=[hf_login_logout_btn, api_token_tb, logout_status, state_api_token])
+        #logout_btn.click(fn=do_logout, inputs=None, outputs=[api_token_tb, logout_status, hf_login_logout_btn, logout_btn])
+
+        # --- PDF & HTML → Markdown tab ---
+        # Event handler for the multiple file upload button
+        file_btn.upload(
+            fn=accumulate_files,
+            inputs=[file_btn, uploaded_file_list],
+            outputs=[uploaded_file_list, output_textbox]
+        )
+
+        # Event handler for the directory upload button
+        dir_btn.upload(
+            fn=accumulate_files,
+            inputs=[dir_btn, uploaded_file_list],
+            outputs=[uploaded_file_list, output_textbox]
+        )
+
+        # Event handler for the "Clear" button
+        clear_button.click(
+            fn=clear_state,
+            inputs=None,
+            outputs=[uploaded_file_list, output_textbox, file_btn, dir_btn],
+        )
+
         # file inputs
         ## [wierd] NB: inputs_arg is a list of Gradio component objects, not the values of those components.
         ## inputs_arg variable captures the state of these components at the time the list is created. 
@@ -819,7 +846,7 @@ def build_interface() -> gr.Blocks:
             temperature_sl,
             top_p_sl,
             stream_cb,
-            api_token_tb,
+            api_token_tb,   #state_api_token,  #api_token_tb,
             #gr.State(4),   # max_workers
             #gr.State(3),    # max_retries
             openai_base_url_tb,
@@ -830,7 +857,7 @@ def build_interface() -> gr.Blocks:
             output_dir_tb,
             use_llm_cb,
             page_range_tb,
-            tz_hours_num,
+            tz_hours_num,   #state_tz_hours 
         ]
 
         ## debug
