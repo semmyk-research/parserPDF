@@ -1,5 +1,5 @@
-gradio>=5.40.0
-marker-pdf[full]>=1.3.0           # pip install marker (GitHub: https://github.com/datalab-to/marker)
+gradio>=5.44.0
+marker-pdf[full]>=1.10.0           # pip install marker (GitHub: https://github.com/datalab-to/marker)
 weasyprint>=59.0       # optional fallback if pandoc is not available
 #pandoc==2.3            # for Markdown → PDF conversion
 python-magic==0.4.27    # file‑type detection

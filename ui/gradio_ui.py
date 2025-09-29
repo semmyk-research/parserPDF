@@ -33,6 +33,17 @@ pdf2md_converter = PdfToMarkdownConverter()
 #html2md_converter = HtmlToMarkdownConverter()
 #md2pdf_converter = MarkdownToPdfConverter()
 
+    
+# User eXperience: Load Marker models ahead of time if not already loaded in reload mode
+## SMY: 29Sept2025 - Came across https://github.com/xiaoyao9184/docker-marker/tree/master/gradio
+from converters.extraction_converter import load_models
+try:
+    if 'model_dict' not in globals():
+        model_dict = load_models()
+except Exception as exc:
+    #tb = traceback.format_exc()   #exc.__traceback__
+    logger.exception(f"✗ Error loading models (reload): {exc}")  #\n{tb}")
+    raise RuntimeError(f"✗ Error loading models (reload): {exc}")  #\n{tb}") 
 
 def get_login_token( api_token_arg, oauth_token: gr.OAuthToken | None=None,):
     """ Use user's supplied token or Get token from logged-in users, else from token stored on the  machine. Return token"""
@@ -46,7 +57,8 @@ def get_login_token( api_token_arg, oauth_token: gr.OAuthToken | None=None,):
     return oauth_token.token  ##token value
 
 # pool executor to convert files called by Gradio
-##SMY: TODO: future: refactor to gradio_process.py
+##SMY: TODO: future: refactor to gradio_process.py and 
+## pull options to cli-options{"output_format":, "output_dir_string":, "use_llm":, "page_range":, "force_ocr":, "debug":, "strip_existing_ocr":, "disable_ocr_math""}
 def convert_batch(
     pdf_files, #: list[str],
     pdf_files_count: int,

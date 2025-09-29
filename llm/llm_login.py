@@ -38,12 +38,12 @@ def login_huggingface(token: Optional[str] = None):
     try:
         #if HfApi.whoami():   ##SMY requires 'self' = HfApi. Alternatively HfApi().whoami()
         if whoami():  ##SMY: Call HF API to know "whoami".
-            logger.info("✔️ hf_login already", extra={"mode": "HF Oauth"})
+            logger.info("✔️ hf_login already: whoami()", extra={"mode": "HF Oauth"})
             #return True
         else:
             login()   ##SMY: Not visible/interactive to users onH Space. #limitation
             sleep(5)  ##SMY pause for login. Helpful: pool async opex 
-            logger.info("✔️ hf_login already", extra={"mode": "cli"})
+            logger.info("✔️ hf_login already: login()", extra={"mode": "cli"})
             #return True
     except Exception as exc:
         # Respect common env var names; prefer explicit token arg when provided

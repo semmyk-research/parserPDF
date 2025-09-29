@@ -4,17 +4,37 @@ emoji: 📚
 colorFrom: yellow
 colorTo: purple
 sdk: gradio
+sdk_version: 5.44.1
+python_version: 3.12
 command: python main.py
 app_file: main.py
 hf_oauth: true
 oauth_scopes: [read-access]
-python_version: 3.12
 license: mit
 pinned: true
 short_description: PDF & HTML parser to markdown
-models: [meta-llama/Llama-4-Maverick-17B-128E-Instruct, openai/gpt-oss-120b, openai/gpt-oss-20b]
+#models: [meta-llama/Llama-4-Maverick-17B-128E-Instruct, openai/gpt-oss-120b, openai/gpt-oss-20b, ]
+models: 
+  - meta-llama/Llama-4-Maverick-17B-128E-Instruct
+  - openai/gpt-oss-120b, openai/gpt-oss-20b
+  - vikp/surya_det3
+  - vikp/surya_rec2
+  - vikp/surya_tablerec
+  - datalab-to/surya_layout
+  - datalab-to/surya_tablerec
+  - datalab-to/texify
+  - datalab-to/ocr_error_detection
+  - datalab-to/inline_math_det0
+  - datalab-to/line_detector0
+  - xiaoyao9184/surya_text_detection
+  - xiaoyao9184/surya_text_recognition
+  - xiaoyao9184/surya_table_recognition
+  - xiaoyao9184/surya_texify
+  - xiaoyao9184/surya_layout
+  - xiaoyao9184/surya_ocr_error_detection
+  - xiaoyao9184/surya_inline_math_detection]
 tags: [markdown, PDF, parser, converter, extractor]
-preload_from_hub: [https://huggingface.co/datalab-to/surya_layout, https://huggingface.co/datalab-to/surya_tablerec, huggingface.co/datalab-to/line_detector0, https://huggingface.co/tarun-menta/ocr_error_detection/blob/main/config.json]
+#preload_from_hub: [https://huggingface.co/datalab-to/surya_layout, https://huggingface.co/datalab-to/surya_tablerec, huggingface.co/datalab-to/line_detector0, https://huggingface.co/tarun-menta/ocr_error_detection/blob/main/config.json]
 owner: research-semmyk
 #---
 #
@@ -46,6 +66,14 @@ requires-python: ">=3.12"
 #  - huggingface.co/datalab-to/line_detector0
 #  - https://huggingface.co/tarun-menta/ocr_error_detection/blob/main/config.json
 #owner: research-semmyk
+## Model list
+#[
+#    "datalab/models/text_recognition/2025_08_29",
+#    "datalab/models/layout/2025_02_18",
+#    "datalab/models/table_recognition/2025_02_18",
+#    "datalab/models/text_detection/2025_05_07",
+#    "datalab/models/ocr_error_detection/2025_02_18",
+#]
 ---
 
 # parserPDF
