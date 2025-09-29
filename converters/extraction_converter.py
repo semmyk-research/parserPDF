@@ -23,6 +23,7 @@ logger = get_logger(__name__)
 
 # create/load models. Called to curtail reloading models at each instance
 def load_models():
+    """ Creates Marker's models dict. Initiate download of models """
     return create_model_dict()
 
 # Full document converter
@@ -66,7 +67,7 @@ class DocumentConverter:
         self.max_workers = max_workers  ## pass to config_dict["pdftext_workers"]
         self.max_retries = max_retries  ## pass to __call__
         self.output_dir = output_dir    ## "output_dir": settings.DEBUG_DATA_FOLDER if debug else output_dir,
-        self.use_llm = use_llm[0] if isinstance(use_llm, tuple) else use_llm,  #False,  #True,
+        self.use_llm = use_llm if use_llm else False  #use_llm[0] if isinstance(use_llm, tuple) else use_llm,  #False,  #True,
         #self.page_range = page_range[0] if isinstance(page_range, tuple) else page_range   ##SMY: iterating twice because self.page casting as hint type tuple!
         self.page_range = page_range if page_range else None
         # self.page_range = page_range[0] if isinstance(page_range, tuple) else page_range if isinstance(page_range, str) else None,  ##Example: "0,4-8,16"  ##Marker parses as List[int]  #]debug  #len(pdf_file)
@@ -103,6 +104,7 @@ class DocumentConverter:
 
             ##SMY: if falsely empty tuple () or None, pop the "page_range" key-value pair, else do nothing if truthy tuple value (i.e. keep as-is)
             self.config_dict.pop("page_range", None) if not self.config_dict.get("page_range") else None
+            self.config_dict.pop("use_llm", None) if not self.config_dict.get("use_llm") or self.config_dict.get("use_llm") is False or self.config_dict.get("use_llm") == 'False'  else None
 
             logger.log(level=20, msg="✔️ config_dict custom configured:", extra={"service": "openai"})  #, "config": str(self.config_dict)})
 
@@ -135,10 +137,18 @@ class DocumentConverter:
             raise RuntimeError(f"✗ Error creating artifact_dict or retrieving LLM service: {exc}\n{tb}")  #.with_traceback(tb)
 
         # 4) Load models if not already loaded in reload mode
+        from globals import config_load_models
         try:
-            if 'model_dict' not in globals():
-                #model_dict = self.load_models()
+            if not config_load_models.model_dict or 'model_dict' not in globals():
                 model_dict = load_models()
+                '''if 'model_dict' not in globals():
+                    #model_dict = self.load_models()
+                    model_dict = load_models()'''
+            else: model_dict = config_load_models.model_dict
+        except OSError as exc_ose:
+            tb = traceback.format_exc()   #exc.__traceback__
+            logger.warning(f"⚠️ OSError: the paging file is too small (to complete reload): {exc_ose}\n{tb}")
+            pass
         except Exception as exc:
             tb = traceback.format_exc()   #exc.__traceback__
             logger.exception(f"✗ Error loading models (reload): {exc}\n{tb}")
@@ -146,12 +156,13 @@ class DocumentConverter:
 
         
         # 5) Instantiate Marker's MarkerConverter (PdfConverter) with config managed by config_parser
-        try:
-            llm_service_str = str(self.llm_service).split("'")[1]  ## SMY: split and slicing  ##Gets the string value
+        try:  # Assign llm_service if api_token.  ##SMY: split and slicing  ##Gets the string value
+            llm_service_str = None if api_token == '' or api_token is None or self.use_llm is False else str(self.llm_service).split("'")[1]  #
 
-            # sets api_key required by Marker 
-            os.environ["OPENAI_API_KEY"] = api_token if api_token !='' or None else self.openai_api_key  ## to handle Marker's assertion test on OpenAI
-            logger.log(level=20, msg="self.converter: instantiating MarkerConverter:", extra={"llm_service_str": llm_service_str, "api_token": api_token})  ##debug
+            # sets api_key required by Marker ## to handle Marker's assertion test on OpenAI
+            #os.environ["OPENAI_API_KEY"] = api_token if api_token !='' or api_token is not None else self.openai_api_key  ##SMY: looks lame
+            os.environ["OPENAI_API_KEY"] = api_token if api_token and api_token != '' else os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
+            #logger.log(level=20, msg="self.converter: instantiating MarkerConverter:", extra={"llm_service_str": llm_service_str, "api_token": api_token})  ##debug
             
             config_dict = config_parser.generate_config_dict()
             #config_dict["pdftext_worker"] = self.max_workers  #1  ##SMY: move to get_config_dicts()
@@ -160,7 +171,7 @@ class DocumentConverter:
             self.converter = MarkerConverter(
                 ##artifact_dict=self.artifact_dict,
                 #artifact_dict=create_model_dict(),
-                artifact_dict=model_dict,
+                artifact_dict=model_dict if model_dict else create_model_dict(),
                 config=config_dict,
                 #config=config_parser.generate_config_dict(),
                 #llm_service=self.llm_service  ##SMY expecting str but self.llm_service, is service object marker.services of type BaseServices
@@ -180,8 +191,9 @@ class DocumentConverter:
 
         try:
             ## Enable higher quality processing with LLMs.  ## See MarkerOpenAIService,  
-            #llm_service = llm_service.removeprefix("<class '").removesuffix("'>")  # e.g <class 'marker.services.openai.OpenAIService'>
-            llm_service  = str(llm_service).split("'")[1]  ## SMY: split and slicing
+            # llm_service disused here
+            ##llm_service = llm_service.removeprefix("<class '").removesuffix("'>")  # e.g <class 'marker.services.openai.OpenAIService'>
+            #llm_service  = str(llm_service).split("'")[1]  ## SMY: split and slicing
             self.use_llm = self.use_llm[0] if isinstance(self.use_llm, tuple) else self.use_llm
             self.page_range = self.page_range[0] if isinstance(self.page_range, tuple) else self.page_range #if isinstance(self.page_range, str) else None,  ##SMY: passing as hint type tuple!
             

@@ -41,17 +41,17 @@ def login_huggingface(token: Optional[str] = None):
             logger.info("✔️ hf_login already: whoami()", extra={"mode": "HF Oauth"})
             #return True
         else:
-            login()   ##SMY: Not visible/interactive to users onH Space. #limitation
+            login()   ##SMY: Not visible/interactive to users on HF Space. ## ProcessPoll limitation
             sleep(5)  ##SMY pause for login. Helpful: pool async opex 
             logger.info("✔️ hf_login already: login()", extra={"mode": "cli"})
             #return True
     except Exception as exc:
         # Respect common env var names; prefer explicit token arg when provided
-        fallback_token = token if token else get_token() or os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
+        fallback_token = token if token else get_token() or os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")  ##SMY: to revisit
         if fallback_token:
             try:
                 login(token=fallback_token)
-                token = fallback_token
+                #token = fallback_token  ##debug
                 logger.info("✔️ hf_login through fallback", extra={"mode": "token"})  ##SMY: This only displays if token is provided
             except Exception as exc_token:
                 logger.warning("❌ hf_login_failed through fallback", extra={"error": str(exc_token)})

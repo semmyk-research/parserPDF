@@ -37,9 +37,13 @@ pdf2md_converter = PdfToMarkdownConverter()
 # User eXperience: Load Marker models ahead of time if not already loaded in reload mode
 ## SMY: 29Sept2025 - Came across https://github.com/xiaoyao9184/docker-marker/tree/master/gradio
 from converters.extraction_converter import load_models
+from globals import config_load_models
 try:
-    if 'model_dict' not in globals():
-        model_dict = load_models()
+    if not config_load_models.model_dict:
+        config_load_models.model_dict = load_models()
+    '''if 'model_dict' not in globals():
+        global model_dict
+        model_dict = load_models()'''
 except Exception as exc:
     #tb = traceback.format_exc()   #exc.__traceback__
     logger.exception(f"✗ Error loading models (reload): {exc}")  #\n{tb}")
@@ -54,7 +58,7 @@ def get_login_token( api_token_arg, oauth_token: gr.OAuthToken | None=None,):
         oauth_token = oauth_token 
     else: get_token()
     
-    return oauth_token.token  ##token value
+    return oauth_token.token if oauth_token else ''  ##token value or empty string
 
 # pool executor to convert files called by Gradio
 ##SMY: TODO: future: refactor to gradio_process.py and 
@@ -109,15 +113,18 @@ def convert_batch(
         
         if is_loggedin_huggingface() and (api_token is None or api_token == ""):
             api_token = get_token()   ##SMY: might be redundant
+        
+        elif login_huggingface(api_token):
+            # login: Update the Gradio UI to improve user-friendly eXperience
+            yield gr.update(interactive=False), f"login to HF: Processing files...", {"process": "Processing files"}, f"__init__.py"
         else:
-            login_huggingface(api_token)
-        # login: Update the Gradio UI to improve user-friendly eXperience
-        yield gr.update(interactive=False), f"login to HF: Processing files...", {"process": "Processing files"}, f"__init__.py"
+            # login: Update the Gradio UI to improve user-friendly eXperience
+            yield gr.update(interactive=False), f"Not logged in to HF: Processing files...", {"process": "Processing files"}, f"__init__.py"
         
     except Exception as exc:  # Catch all exceptions
         tb = traceback.format_exc()
         logger.exception(f"✗ Error during login_huggingface → {exc}\n{tb}", exc_info=True) # Log the full traceback
-        return gr.update(interactive=True), f"✗ An error occurred during login_huggingface → {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"__init__.py"  # return the exception message
+        return [gr.update(interactive=True), f"✗ An error occurred during login_huggingface → {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"__init__.py"]  # return the exception message
 
 
     ## debug
@@ -127,7 +134,7 @@ def convert_batch(
     if not pdf_files or pdf_files is None:  ## Check if files is None. This handles the case where no files are uploaded.
         logger.log(level=30, msg="Initialising ProcessPool: No files uploaded.", extra={"pdf_files": pdf_files, "files_len": pdf_files_count})
         #outputs=[log_output, files_individual_JSON, files_individual_downloads],
-        return gr.update(interactive=True), "Initialising ProcessPool: No files uploaded.", {"Upload":"No files uploaded"}, f"__init__.py"
+        return [gr.update(interactive=True), "Initialising ProcessPool: No files uploaded.", {"Upload":"No files uploaded"}, f"__init__.py"]
     
     # Get config values if not provided
     config_file = find_file("config.ini")  ##from file_handler.file_utils
@@ -232,7 +239,6 @@ def convert_batch(
         tb = traceback.format_exc()
         logger.exception(f"✗ Error during ProcessPoolExecutor → {exc}\n{tb}" , exc_info=True)  # Log the full traceback
         #traceback.print_exc()  # Print the exception traceback
-        #return gr.update(interactive=True), f"✗ An error occurred during ProcessPoolExecutor→ {exc}\n{tb}", f"Error: {exc}", f"Error: {exc}"  # return the exception message
         yield gr.update(interactive=True), f"✗ An error occurred during ProcessPoolExecutor→ {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"__init__.py"  # return the exception message
 
     '''
@@ -245,7 +251,7 @@ def convert_batch(
 
     # Zip Processed md Files and images. Insert to first index
     try:  ##from file_handler.file_utils
-        zipped_processed_files = zip_processed_files(root_dir=f"data/{output_dir_string}", file_paths=logs_files_images, tz_hours=tz_hours, date_format='%d%b%Y')
+        zipped_processed_files = zip_processed_files(root_dir=f"data/{output_dir_string}", file_paths=logs_files_images, tz_hours=tz_hours, date_format='%d%b%Y_%H-%M-%S')  #date_format='%d%b%Y'
         logs_files_images.insert(0, zipped_processed_files)
         #logs_files_images.insert(1, "====================")
         yield gr.update(interactive=False), f"Processing zip and files: {logs_files_images}", {"process": "Processing files"}, f"__init__.py"
@@ -273,18 +279,18 @@ def convert_batch(
         
         #outputs=[process_button, log_output, files_individual_JSON, files_individual_downloads],
         #return "\n".join(logs), "\n".join(logs_files_images)    #"\n".join(logs_files)
-        #return logs_return_formatted_json_string, logs_return_formatted_json_string, logs_files_images_return
-        #return gr.update(interactive=True), gr.update(value=logs_return_formatted_json_string), gr.update(value=logs_return_formatted_json_string, visible=True), gr.update(value=logs_files_images_return, visible=True)
-        #yield  gr.update(interactive=True), gr.update(), gr.update(visible=True), gr.update(visible=True)
+        
+        yield  gr.update(interactive=True), gr.update(value=logs_return_formatted_json_string), gr.update(value=logs_return_formatted_json_string, visible=True), gr.update(value=logs_files_images_return, visible=True)
+        return [gr.update(interactive=True), gr.update(value=logs_return_formatted_json_string), gr.update(value=logs_return_formatted_json_string, visible=True), gr.update(value=logs_files_images_return, visible=True)]
         #yield gr.update(interactive=True), logs_return_formatted_json_string, logs_return_formatted_json_string, logs_files_images_return
-        return gr.update(interactive=True), logs_return_formatted_json_string, logs_return_formatted_json_string, logs_files_images_return
+        #return [gr.update(interactive=True), logs_return_formatted_json_string, logs_return_formatted_json_string, logs_files_images_return]
         
     except Exception as exc:
         tb = traceback.format_exc()
         logger.exception(f"✗ Error during returning result logs → {exc}\n{tb}" , exc_info=True)  # Log the full traceback
         #traceback.print_exc()  # Print the exception traceback
-        return gr.update(interactive=True), f"✗ An error occurred during returning result logs→ {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"__init__.py"  # return the exception message
-
+        #return [gr.update(interactive=True), f"✗ An error occurred during returning result logs→ {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"__init__.py"]  # return the exception message
+        yield  [gr.update(interactive=True), f"✗ An error occurred during returning result logs→ {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"__init__.py"]  # return the exception message
 
     #return "\n".join(log for log in logs), "\n".join(str(path) for path in logs_files_images)
     #print(f'logs_files_images: {"\n".join(str(path) for path in logs_files_images)}')

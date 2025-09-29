@@ -38,7 +38,7 @@ class OpenAIChatClient:
                 ) -> None:
         
         try:
-            openai_api_key_env = dotenv.get_key(".env", "OPENAI_API_KEY")
+            openai_api_key_env = dotenv.get_key(".env", "OPENAI_API_KEY") or dotenv.get_key(".env", "GEMINI_API_KEY")
             self.model_id = f"{model_id}:{hf_provider}" if hf_provider is not None else model_id  ##concatenate so HF can pipe to Hf provider
             self.hf_provider = hf_provider
             self.base_url = base_url  #"https://router.huggingface.co/v1"  #%22"  #HF API proxy

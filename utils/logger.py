@@ -30,13 +30,13 @@ class JsonFormatter(logging.Formatter):
         ##SMY: TODO: local time
         self.tz_hours = tz_hours if tz_hours else 0
         self.date_format = date_format
-        self.time = datetime.now(timezone.utc) + timedelta(hours=tz_hours if tz_hours else 0) #if tz_hours else self.time.utcoffset()  # tzinfo=timezone(timedelta(hours=tz_hours))
+        self.time = datetime.now(timezone.utc) + timedelta(hours=tz_hours if tz_hours else 0) ##SMY: TODO: fiz timedelta()
 
     def format(self, record: logging.LogRecord) -> str:  #
         payload = {
             #"ts": datetime.now(timezone.utc).isoformat(),  ## default to 'YYYY-MM-DD HH:MM:SS.mmmmmm',
             #"ts": datetime.now(timezone.utc).strftime("%Y-%m-%d : %H:%M:%S"),  ## SMY: interested in datefmt="%H:%M:%S",
-            "ts": self.time.strftime(self.date_format),  ## SMY: interested in datefmt="%H:%M:%S",
+            "ts": f"{self.time.strftime(self.date_format)} (UTC)",  ## SMY: interested in datefmt="%H:%M:%S",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
