@@ -20,5 +20,6 @@ if __name__ == "__main__":
     os.chdir(script_dir)    ##Path.cwd()
 
     demo = build_interface()
+    demo.queue()  # Enables queue to prevent user's browser premature timeout > 60s
     #demo.launch(debug=True, show_error=True ,ssr_mode=True)  #(share=True)  # share=True for public link; remove in production
-    demo.launch(debug=True, show_error=True, ssr_mode=True)   #ssr_mode=False
+    demo.launch(debug=True, show_error=True, ssr_mode=True,)   #ssr_mode=False

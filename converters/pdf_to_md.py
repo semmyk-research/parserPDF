@@ -16,7 +16,7 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Define global variables
+# Define global variables   ##SMY: TODO: consider moving to Globals sigleton constructor
 docconverter: DocumentConverter = None
 converter = None  #DocumentConverter
 #converter:DocumentConverter.converter = None
@@ -138,7 +138,7 @@ class PdfToMarkdownConverter:
 
     ## moved from extraction_converter ( to standalone extract_to_md)
     #def extract(self, src_path: str, output_dir: str) -> Dict[str, int, Union[str, Path]]:
-    def extract(self, src_path: str, output_dir: str) -> Dict:
+    def extract(self, src_path: str, output_dir: str):   #Dict:
     #def extract(src_path: str, output_dir: str) -> Dict[str, int]:  #, extractor: DocumentExtractor) -> Dict[str, int]:
         """
         Convert one file (PDF/HTML) to Markdown + images.
@@ -149,7 +149,7 @@ class PdfToMarkdownConverter:
         try:
             ## SMY: TODO: convert htmls to PDF. Marker will by default attempt weasyprint which typically raise 'libgobject-2' error on Win
             # Set a new environment variable
-            set_weasyprint_library()  ##utils.lib_loader.set_weasyprint_library()            
+            set_weasyprint_library()  ##utils.lib_loader.set_weasyprint_library()
         except Exception as exc:
             tb = traceback.format_exc()
             logger.exception(f"Error loading weasyprint backend dependency → {exc}\n{tb}", exc_info=True)  # Log the full traceback
@@ -206,7 +206,7 @@ class PdfToMarkdownConverter:
 
         try:
             output_dir = create_outputdir(root=src_path, output_dir_string=self.output_dir_string)
-            logger.info(f"✓ output_dir created: {output_dir}")  #{create_outputdir(src_path)}"
+            logger.info(f"✓ output_dir created: {output_dir}")  #{create_outputdir(src_path)}"            
         except Exception as exc:
             tb = traceback.format_exc()
             logger.exception("✗ error creating output_dir → {exc}\n{tb}", exc_info=True)
