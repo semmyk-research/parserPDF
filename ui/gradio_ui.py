@@ -1,4 +1,5 @@
 # ui/gradio_ui.py
+from ast import Interactive
 import gradio as gr
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import asyncio
@@ -7,23 +8,21 @@ from pathlib import Path, WindowsPath
 from typing import Optional, Union #, Dict, List, Any, Tuple
 
 from huggingface_hub import get_token
-from numpy import append, iterable
 
 #import file_handler
+from file_handler import file_utils
 import file_handler.file_utils
-from utils.config import TITLE, DESCRIPTION, DESCRIPTION_PDF_HTML, DESCRIPTION_PDF, DESCRIPTION_HTML, DESCRIPTION_MD
+from utils.config import TITLE, DESCRIPTION, DESCRIPTION_PDF_HTML, DESCRIPTION_PDF, DESCRIPTION_HTML, DESCRIPTION_MD, file_types_list, file_types_tuple
 from utils.utils import is_dict, is_list_of_dicts
 from file_handler.file_utils import zip_processed_files, process_dicts_data, collect_pdf_paths, collect_html_paths, collect_markdown_paths, create_outputdir  ## should move to handling file
 from file_handler.file_utils import find_file
 from utils.get_config import get_config_value
 
-#from llm.hf_client import HFChatClient  ## SMY: unused. See converters.extraction_converter
 from llm.provider_validator import is_valid_provider, suggest_providers
-from llm.llm_login import is_loggedin_huggingface, login_huggingface
+from llm.llm_login import get_login_token, is_loggedin_huggingface, login_huggingface
 from converters.extraction_converter import DocumentConverter as docconverter  #DocumentExtractor #as docextractor
 from converters.pdf_to_md import PdfToMarkdownConverter, init_worker
-#from converters.md_to_pdf import MarkdownToPdfConverter
-#from converters.html_to_md import HtmlToMarkdownConverter  ##SMY: PENDING: implementation
+#from converters.md_to_pdf import MarkdownToPdfConverter  ##SMY: PENDING: implementation
 
 import traceback  ## Extract, format and print information about Python stack traces.
 from utils.logger import get_logger
@@ -32,7 +31,6 @@ logger = get_logger(__name__)   ##NB: setup_logging()  ## set logging
 
 # Instantiate converters class once – they are stateless
 pdf2md_converter = PdfToMarkdownConverter()
-#html2md_converter = HtmlToMarkdownConverter()
 #md2pdf_converter = MarkdownToPdfConverter()
 
     
@@ -42,25 +40,18 @@ from converters.extraction_converter import load_models
 from globals import config_load_models
 try:
     if not config_load_models.model_dict:
-        config_load_models.model_dict = load_models()
+        model_dict = load_models()
+        config_load_models.model_dict = model_dict
     '''if 'model_dict' not in globals():
         global model_dict
         model_dict = load_models()'''
+    logger.log(level=30, msg="Config_load_model: ", extra={"model_dict": str(model_dict)})
 except Exception as exc:
     #tb = traceback.format_exc()   #exc.__traceback__
     logger.exception(f"✗ Error loading models (reload): {exc}")  #\n{tb}")
     raise RuntimeError(f"✗ Error loading models (reload): {exc}")  #\n{tb}") 
 
-def get_login_token( api_token_arg, oauth_token: gr.OAuthToken | None=None,):
-    """ Use user's supplied token or Get token from logged-in users, else from token stored on the  machine. Return token"""
-    #oauth_token = get_token() if oauth_token is not None else api_token_arg
-    if api_token_arg != '':  # or not None:  #| None:
-        oauth_token = api_token_arg
-    elif oauth_token:
-        oauth_token = oauth_token 
-    else: get_token()
-    
-    return oauth_token.token if oauth_token else ''  ##token value or empty string
+#def get_login_token( api_token_arg, oauth_token: gr.OAuthToken | None=None,):  ##moved to llm_login
 
 # pool executor to convert files called by Gradio
 ##SMY: TODO: future: refactor to gradio_process.py and 
@@ -90,6 +81,7 @@ def convert_batch(
     #output_dir: Optional[Union[str, Path]] = "output_dir",
     output_dir_string: str = "output_dir_default",
     use_llm: bool = False,   #Optional[bool] = False,  #True,
+    force_ocr: bool = True,  #Optional[bool] = False,
     page_range: str = None,  #Optional[str] = None,
     tz_hours: str = None,
     oauth_token: gr.OAuthToken | None=None,
@@ -103,15 +95,16 @@ def convert_batch(
     """
 
     # login: Update the Gradio UI to improve user-friendly eXperience - commencing
-    #yield gr.update(interactive=False), f"Commencing Processing ... Getting login", {"process": "Commencing Processing"}, f"dummy_log.log"
-    #progress((0,16), f"Commencing Processing ...")
+    # [template]: #outputs=[process_button, log_output, files_individual_JSON, files_individual_downloads],            
+    yield gr.update(interactive=False), f"Commencing Processing ... Getting login", {"process": "Commencing Processing"}, f"dummy_log.log"
+    progress((0,16), f"Commencing Processing ...")
     
     # get token from logged-in user: 
     api_token = get_login_token(api_token_arg=api_token_gr, oauth_token=oauth_token)
     ##SMY: Strictly debug. Must not be live
-    #logger.log(level=30, msg="Commencing: get_login_token", extra={"api_token]": api_token, "api_token_gr": api_token_gr})
+    #logger.log(level=30, msg="Commencing: get_login_token", extra={"api_token": api_token, "api_token_gr": api_token_gr})
 
-    try:
+    '''try:
         ##SMY: might deprecate. To replace with oauth login from Gradio ui or integrate cleanly.
         #login_huggingface(api_token)  ## attempt login if not already logged in. NB: HF CLI login prompt would not display in Process Worker.
         
@@ -131,9 +124,8 @@ def convert_batch(
         tb = traceback.format_exc()
         logger.exception(f"✗ Error during login_huggingface → {exc}\n{tb}", exc_info=True) # Log the full traceback
         return [gr.update(interactive=True), f"✗ An error occurred during login_huggingface → {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"dummy_log.log"]  # return the exception message
-    
-    #progress((1,16), desc=f"Log in: {is_loggedin_huggingface}")
-
+    '''
+    progress((1,16), desc=f"Log in: {is_loggedin_huggingface(api_token)}")
     ## debug
     #logger.log(level=30, msg="pdf_files_inputs", extra={"input_arg[0]:": pdf_files[0]})
 
@@ -143,22 +135,23 @@ def convert_batch(
         #outputs=[log_output, files_individual_JSON, files_individual_downloads],
         return [gr.update(interactive=True), "Initialising ProcessPool: No files uploaded.", {"Upload":"No files uploaded"}, f"dummy_log.log"]
     
-    #progress((2,16), desc=f"Getting configuration values")
+    progress((2,16), desc=f"Getting configuration values")
     # Get config values if not provided
-    config_file = find_file("config.ini")  ##from file_handler.file_utils
-    model_id = get_config_value(config_file, "MARKER_CAP", "MODEL_ID") if not model_id else model_id
-    openai_base_url = get_config_value(config_file, "MARKER_CAP", "OPENAI_BASE_URL") if not openai_base_url else openai_base_url
-    openai_image_format = get_config_value(config_file, "MARKER_CAP", "OPENAI_IMAGE_FORMAT") if not openai_image_format else openai_image_format
-    max_workers = get_config_value(config_file, "MARKER_CAP", "MAX_WORKERS") if not max_workers else max_workers
-    max_retries = get_config_value(config_file, "MARKER_CAP", "MAX_RETRIES") if not max_retries else max_retries
-    output_format = get_config_value(config_file, "MARKER_CAP", "OUTPUT_FORMAT") if not output_format else output_format
-    output_dir_string = str(get_config_value(config_file, "MARKER_CAP", "OUTPUT_DIR") if not output_dir_string else output_dir_string)
-    use_llm = get_config_value(config_file, "MARKER_CAP", "USE_LLM") if not use_llm else use_llm
-    page_range = get_config_value(config_file,"MARKER_CAP", "PAGE_RANGE") if not page_range else page_range
-    #progress((3,16), desc="Retrieved configuration values")
+    config_file = find_file("config.ini")  ##from file_handler.file_utils  ##takes a bit of time to process. #NeedOptimise
+    model_id = model_id if model_id else get_config_value(config_file, "MARKER_CAP", "MODEL_ID")
+    openai_base_url = openai_base_url if openai_base_url else get_config_value(config_file, "MARKER_CAP", "OPENAI_BASE_URL")
+    openai_image_format = openai_image_format if openai_image_format else get_config_value(config_file, "MARKER_CAP", "OPENAI_IMAGE_FORMAT")
+    max_workers = max_workers if max_workers else get_config_value(config_file, "MARKER_CAP", "MAX_WORKERS")
+    max_retries = max_retries if max_retries else get_config_value(config_file, "MARKER_CAP", "MAX_RETRIES")
+    output_format = output_format if output_format else get_config_value(config_file, "MARKER_CAP", "OUTPUT_FORMAT")
+    output_dir_string = output_dir_string if output_dir_string else str(get_config_value(config_file, "MARKER_CAP", "OUTPUT_DIR"))
+    use_llm = use_llm if use_llm else get_config_value(config_file, "MARKER_CAP", "USE_LLM")
+    page_range = page_range if page_range else get_config_value(config_file,"MARKER_CAP", "PAGE_RANGE")
+    
+    progress((3,16), desc=f"Retrieved configuration values")
 
     # Create the initargs tuple from the Gradio inputs: # 'files' is an iterable, and handled separately.
-    #progress((4,16), desc=f"Initialiasing init_args")
+    progress((4,16), desc=f"Initialiasing init_args")
     yield gr.update(interactive=False), f"Initialising init_args", {"process": "Processing files ..."}, f"dummy_log.log"
     init_args = (
             provider,            
@@ -180,83 +173,91 @@ def convert_batch(
             output_format,
             output_dir_string,
             use_llm,
+            force_ocr,
             page_range,
         )
     
-    #global docextractor   ##SMY: deprecated.
+    # create output_dir
+    try:
+        yield gr.update(interactive=False), f"Creating output_dir ...", {"process": "Processing files ..."}, f"dummy_log.log"
+        progress((5,16), desc=f"ProcessPoolExecutor: Creating output_dir")
+        
+        #pdf2md_converter.output_dir_string = output_dir_string   ##SMY: attempt setting directly to resolve pool.map iterable
+
+        # Create Marker output_dir in temporary directory where Gradio can access it.
+        output_dir = file_utils.create_temp_folder(output_dir_string)
+        pdf2md_converter.output_dir = output_dir
+        
+        logger.info(f"✓ output_dir created: ", extra={"output_dir": pdf2md_converter.output_dir.name, "in": str(pdf2md_converter.output_dir.parent)})
+        yield gr.update(interactive=False), f"Created output_dir ...", {"process": "Processing files ..."}, f"dummy_log.log"
+        progress((6,16), desc=f"✓ Created output_dir.")
+    except Exception as exc:
+            tb = traceback.format_exc()
+            tbp = traceback.print_exc()  # Print the exception traceback
+            logger.exception("✗ error creating output_dir → {exc}\n{tb}", exc_info=True)  # Log the full traceback
+            
+            # Update the Gradio UI to improve user-friendly eXperience
+            yield gr.update(interactive=True), f"✗ An error occurred creating output_dir: {str(exc)}", {"Error":f"Error: {exc}"}, f"dummy_log.log"  ## return the exception message
+            return f"An error occurred creating output_dir: {str(exc)}", f"Error: {exc}", f"Error: {exc}"  ## return the exception message
+
+    # Process file conversion leveraging ProcessPoolExecutor for efficiency    
     try:
         results = []  ## initialised pool result holder
-        # Create a pool with init_worker initialiser
         logger.log(level=30, msg="Initialising ProcessPoolExecutor: pool:", extra={"pdf_files": pdf_files, "files_len": len(pdf_files), "model_id": model_id, "output_dir": output_dir_string})  #pdf_files_count
-        #progress((5,16), desc=f"Initialising ProcessPoolExecutor: Processing Files ...")
         yield gr.update(interactive=False), f"Initialising ProcessPoolExecutor: Processing Files ...", {"process": "Processing files ..."}, f"dummy_log.log"
+        progress((7,16), desc=f"Initialising ProcessPoolExecutor: Processing Files ...")
 
+        # Create a pool with init_worker initialiser
         with ProcessPoolExecutor(
             max_workers=max_workers,
             initializer=init_worker,
             initargs=init_args
         ) as pool:
-            #logger.log(level=30, msg="Initialising ProcessPoolExecutor: pool:", extra={"pdf_files": pdf_files, "files_len": len(pdf_files), "model_id": model_id, "output_dir": output_dir_string})  #pdf_files_count
-            #progress((6,16), desc=f"Starting ProcessPool queue: Processing Files ...")
-
-            # Update the Gradio UI to improve user-friendly eXperience
-            #outputs=[process_button, log_output, files_individual_JSON, files_individual_downloads],
-                        
-                        
+            logger.log(level=30, msg="Initialising ProcessPoolExecutor: pool:", extra={"pdf_files": pdf_files, "files_len": len(pdf_files), "model_id": model_id, "output_dir": output_dir_string})  #pdf_files_count
+            progress((8,16), desc=f"Starting ProcessPool queue: Processing Files ...")
+  
             # Map the files (pdf_files) to the conversion function (pdf2md_converter.convert_file)
             # The 'docconverter' argument is implicitly handled by the initialiser
             #futures = [pool.map(pdf2md_converter.convert_files, f) for f in pdf_files]
             #logs = [f.result() for f in as_completed(futures)]
             #futures = [pool.submit(pdf2md_converter.convert_files, file) for file in pdf_files]
             #logs = [f.result() for f in futures]
-            
             try:
-                #(7,16), desc=f"ProcessPoolExecutor: Creating output_dir")
-                yield gr.update(interactive=False), f"Creating output_dir ...", {"process": "Processing files ..."}, f"dummy_log.log"
-                pdf2md_converter.output_dir_string = output_dir_string   ##SMY: attempt setting directly to resolve pool.map iterable
-                #progress((8,16), desc=f"ProcessPoolExecutor: Created output_dir.")
-                yield gr.update(interactive=False), f"Created output_dir ...", {"process": "Processing files ..."}, f"dummy_log.log"
-                
-            except Exception as exc:
-                            # Raise the exception to stop the Gradio app: exception to halt execution
-                            logger.exception("Error during creating output_dir", exc_info=True)  # Log the full traceback
-                            traceback.print_exc()  # Print the exception traceback
-                            #return f"An error occurred during pool.map: {str(exc)}", f"Error: {exc}", f"Error: {exc}"  ## return the exception message
-                            # Update the Gradio UI to improve user-friendly eXperience
-                            yield gr.update(interactive=True), f"An error occurred creating output_dir: {str(exc)}", {"Error":f"Error: {exc}"}, f"dummy_log.log"  ## return the exception message
-               
-            try:
-                #progress((9,16), desc=f"ProcessPoolExecutor: Pooling file conversion ...")
                 yield gr.update(interactive=True), f"ProcessPoolExecutor: Pooling file conversion ...", {"process": "Processing files ..."}, f"dummy_log.log"
+                progress((9,16), desc=f"ProcessPoolExecutor: Pooling file conversion ...")
+                
                 # Use progress.tqdm to integrate with the executor map
                 #results = pool.map(pdf2md_converter.convert_files, pdf_files)  ##SMY iterables  #max_retries #output_dir_string)
                 for result_interim in progress.tqdm(
-                    iterable=pool.map(pdf2md_converter.convert_files, pdf_files), total=len(pdf_files)
+                    iterable=pool.map(pdf2md_converter.convert_files, pdf_files)  #, max_retries), total=len(pdf_files)
                     ):
                     results.append(result_interim)
-                    #progress((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]")
                     # Update the Gradio UI to improve user-friendly eXperience
                     yield gr.update(interactive=True), f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]", {"process": "Processing files ..."}, f"dummy_log.log"
+                    progress((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]")
                     
-                #progress((11,16), desc=f"ProcessPoolExecutor: Got Results from files conversion")
-                yield gr.update(interactive=True), f"rocessPoolExecutor: Got Results from files conversion: [{str(result_interim)}[:20]]", {"process": "Processing files ..."}, f"dummy_log.log"
+                yield gr.update(interactive=True), f"ProcessPoolExecutor: Got Results from files conversion: [{str(result_interim)}[:20]]", {"process": "Processing files ..."}, f"dummy_log.log"
+                progress((11,16), desc=f"ProcessPoolExecutor: Got Results from files conversion")
             except Exception as exc:
                 # Raise the exception to stop the Gradio app: exception to halt execution
                 logger.exception("Error during pooling file conversion", exc_info=True)  # Log the full traceback
-                traceback.print_exc()  # Print the exception traceback
-                return [gr.update(interactive=True), f"An error occurred during pool.map: {str(exc)}", {"Error":f"Error: {exc}"}, f"dummy_log.log"]  ## return the exception message
+                tbp = traceback.print_exc()  # Print the exception traceback
                 # Update the Gradio UI to improve user-friendly eXperience
-                #yield gr.update(interactive=True), f"An error occurred during pool.map: {str(exc)}", {"Error":f"Error: {exc}"}, f"dummy_log.log"  ## return the exception message
+                yield gr.update(interactive=True), f"An error occurred during pool.map: {str(exc)}", {"Error":f"Error: {exc}\n{tbp}"}, f"dummy_log.log"  ## return the exception message
+                return [gr.update(interactive=True), f"An error occurred during pool.map: {str(exc)}", {"Error":f"Error: {exc}\n{tbp}"}, f"dummy_log.log"]  ## return the exception message
             
-            #'''
+            # Process file conversion results
             try:
+                progress((12,16), desc="Processing results from files conversion")  ##rekickin
                 logger.log(level=20, msg="ProcessPoolExecutor pool result:", extra={"results": str(results)})
+                
                 logs = []
                 logs_files_images = []
+
                 #logs.extend(results)   ## performant pythonic
                 #logs = list[results]  ## 
                 logs = [result for result in results]  ## pythonic list comprehension
-                ## logs : [file , images , filepath, image_path]
+                # [template]  ## logs : [file , images , filepath, image_path]
                 
                 #logs_files_images = logs_files.extend(logs_images)  #zip(logs_files, logs_images)   ##SMY: in progress
                 logs_count =  0
@@ -268,64 +269,48 @@ def convert_batch(
                     # Update the Gradio UI to improve user-friendly eXperience
                     #yield gr.update(interactive=False), f"Processing files: {logs_files_images[logs_count]}", {"process": "Processing files"}, f"dummy_log.log"
                     logs_count = i+i_image
-                
-                #progress((12,16), desc="Processing results from files conversion")  ##rekickin
-                #logs_files_images.append(logs_filepath) ## to del
-                #logs_files_images.extend(logs_images)   ## to del
             except Exception as exc:
-                logger.exception("Error during processing results logs → {exc}\n{tb}", exc_info=True)  # Log the full traceback
-                traceback.print_exc()  # Print the exception traceback
+                tbp = traceback.print_exc()  # Print the exception traceback
+                logger.exception("Error during processing results logs → {exc}\n{tbp}", exc_info=True)  # Log the full traceback
                 return [gr.update(interactive=True), f"An error occurred during processing results logs: {str(exc)}\n{tb}", {"Error":f"Error: {exc}"}, f"dummy_log.log"]  ## return the exception message
                 #yield gr.update(interactive=True), f"An error occurred during processing results logs: {str(exc)}\n{tb}", {"Error":f"Error: {exc}"}, f"dummy_log.log"  ## return the exception message
-            
-            #'''
     except Exception as exc:
         tb = traceback.format_exc()
         logger.exception(f"✗ Error during ProcessPoolExecutor → {exc}\n{tb}" , exc_info=True)  # Log the full traceback
         #traceback.print_exc()  # Print the exception traceback
-        yield gr.update(interactive=True), f"✗ An error occurred during ProcessPoolExecutor→ {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"dummy_log.log"  # return the exception message
+        yield gr.update(interactive=True), f"✗ An error occurred during ProcessPoolExecutor→ {exc}", {"Error":f"Error: {exc}"}, f"dummy_log.log"  # return the exception message
 
-    '''
-    logger.log(level=20, msg="ProcessPoolExecutor pool result:", extra={"results": str(results)})
-    logs = []
-    #logs.extend(results)   ## performant pythonic
-    #logs = list[results]  ## 
-    logs = [result for result in results]  ## pythonic list comprehension
-    '''
-
-    # Zip Processed md Files and images. Insert to first index
+    # Zip Processed Files and images. Insert to first index
     try:  ##from file_handler.file_utils
-        #progress((13,16), desc="Zipping processed files and images")
-        zipped_processed_files = zip_processed_files(root_dir=f"data/{output_dir_string}", file_paths=logs_files_images, tz_hours=tz_hours, date_format='%d%b%Y_%H-%M-%S')  #date_format='%d%b%Y'
+        progress((13,16), desc="Zipping processed files and images")
+        zipped_processed_files = zip_processed_files(root_dir=f"{output_dir}", file_paths=logs_files_images, tz_hours=tz_hours, date_format='%d%b%Y_%H-%M-%S')  #date_format='%d%b%Y'
         logs_files_images.insert(0, zipped_processed_files)
-        #logs_files_images.insert(1, "====================")
 
-        #progress((14,16), desc="Zipped processed files and images")
+        progress((14,16), desc="Zipped processed files and images")
         #yield gr.update(interactive=False), f"Processing zip and files: {logs_files_images}", {"process": "Processing files"}, f"dummy_log.log"
     
     except Exception as exc:
         tb = traceback.format_exc()
         logger.exception(f"✗ Error during zipping processed files → {exc}\n{tb}" , exc_info=True)  # Log the full traceback
         #traceback.print_exc()  # Print the exception traceback
-        #return gr.update(interactive=True), f"✗ An error occurred during zipping files → {exc}\n{tb}", f"Error: {exc}", f"Error: {exc}"  # return the exception message
         yield gr.update(interactive=True), f"✗ An error occurred during zipping files → {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"dummy_log.log"  # return the exception message
+        return gr.update(interactive=True), f"✗ An error occurred during zipping files → {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"dummy_log.log"  # return the exception message
 
     
     # Return processed files log
     try:
-        #progress((15,16), desc="Formatting processed log results")
+        progress((15,16), desc="Formatting processed log results")
+        
         ## # Convert logs list of dicts to formatted json string
         logs_return_formatted_json_string = file_handler.file_utils.process_dicts_data(logs)   #"\n".join(log for log in logs)  ##SMY outputs to gr.JSON component with no need for json.dumps(data, indent=)
-        #logs_files_images_return = "\n".join(path for path in logs_files_images)  ##TypeError: sequence item 0: expected str instance, WindowsPath found
-        
-        ##convert the List of Path objects to List of string for gr.Files output
-        #logs_files_images_return = list(str(path) for path in logs_files_images)  
+        #logs_files_images_return = "\n".join(path for path in logs_files_images)  ##TypeError: sequence item 0: expected str instance, WindowsPath found  
         
         ## # Convert any Path objects to strings, but leave strings as-is
         logs_files_images_return = list(str(path) if isinstance(path, Path) else path for path in logs_files_images)
         logger.log(level=20, msg="File conversion complete. Sending outcome to Gradio:", extra={"logs_files_image_return": str(logs_files_images_return)})  ## debug: FileNotFoundError: [WinError 2] The system cannot find the file specified: 'Error or no image_path'
         
-        #progress((16,16), desc="Complete processing and formatting file processing results")
+        progress((16,16), desc="Complete processing and formatting file processing results")
+        # [templates]
         #outputs=[process_button, log_output, files_individual_JSON, files_individual_downloads],
         #return "\n".join(logs), "\n".join(logs_files_images)    #"\n".join(logs_files)
         
@@ -338,8 +323,8 @@ def convert_batch(
         tb = traceback.format_exc()
         logger.exception(f"✗ Error during returning result logs → {exc}\n{tb}" , exc_info=True)  # Log the full traceback
         #traceback.print_exc()  # Print the exception traceback
-        #return [gr.update(interactive=True), f"✗ An error occurred during returning result logs→ {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"dummy_log.log"]  # return the exception message
-        yield  [gr.update(interactive=True), f"✗ An error occurred during returning result logs→ {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"dummy_log.log"]  # return the exception message
+        yield   gr.update(interactive=True), f"✗ An error occurred during returning result logs→ {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"dummy_log.log"  # return the exception message
+        return [gr.update(interactive=True), f"✗ An error occurred during returning result logs→ {exc}\n{tb}", {"Error":f"Error: {exc}"}, f"dummy_log.log"]  # return the exception message
 
     #return "\n".join(log for log in logs), "\n".join(str(path) for path in logs_files_images)
     #print(f'logs_files_images: {"\n".join(str(path) for path in logs_files_images)}')
@@ -517,7 +502,7 @@ def build_interface() -> gr.Blocks:
         #message = f"Accumulated {len(updated_files)} file(s) total.\n\nAll file paths:\n{file_info}"
         message = f"Accumulated {len(updated_files)} file(s) total: \n{filename_info}"
         
-        return updated_files, message
+        return updated_files, message, gr.update(interactive=True), gr.update(interactive=True)
 
     # with gr.Blocks(title=TITLE) as demo
     with gr.Blocks(title=TITLE, css=custom_css) as demo:
@@ -592,7 +577,7 @@ def build_interface() -> gr.Blocks:
                 )
 
         # Clean UI: Model parameters hidden in collapsible accordion
-        with gr.Accordion("⚙️ Marker Settings", open=False):
+        with gr.Accordion("⚙️ Marker Converter Settings", open=False):
             gr.Markdown(f"#### **Marker Configuration**")
             with gr.Row():
                 openai_base_url_tb = gr.Textbox(
@@ -607,7 +592,7 @@ def build_interface() -> gr.Blocks:
                     value="webp",
                 )
                 output_format_dd = gr.Dropdown(
-                    choices=["markdown", "html"],  #, "json", "chunks"],  ##SMY: To be enabled later
+                    choices=["markdown", "html", "json"],  #, "json", "chunks"],  ##SMY: To be enabled later
                     #choices=["markdown", "html", "json", "chunks"],
                     label="Output Format",
                     value="markdown",
@@ -633,10 +618,15 @@ def build_interface() -> gr.Blocks:
                     value=2,
                     step=1  #0.01
                 )
-                use_llm_cb = gr.Checkbox(
-                    label="Use LLM for Marker conversion",
-                    value=False
-                )
+                with gr.Column():
+                    use_llm_cb = gr.Checkbox(
+                        label="Use LLM for Marker conversion",
+                        value=False
+                    )
+                    force_ocr_cb = gr.Checkbox(
+                        label="force OCR on all pages",
+                        value=True,
+                    )
                 page_range_tb = gr.Textbox(
                     label="Page Range (Optional)",
                     placeholder="Example: 0,1-5,8,12-15",
@@ -677,13 +667,14 @@ def build_interface() -> gr.Blocks:
                 btn_pdf_convert = gr.Button("Convert PDF(s)")
             '''
 
+            file_types_list.extend(file_types_tuple)
             with gr.Column(elem_classes=["file-or-directory-area"]):
                 with gr.Row():
                     file_btn = gr.UploadButton(
                     #file_btn = gr.File(
                         label="Upload Multiple Files",
                         file_count="multiple",
-                        file_types=["file"],
+                        file_types= file_types_list,  #["file"],  ##config.file_types_list
                         #height=25,  #"sm",
                         size="sm",
                         elem_classes=["gradio-upload-btn"]
@@ -692,7 +683,7 @@ def build_interface() -> gr.Blocks:
                     #dir_btn = gr.File(
                         label="Upload a Directory",
                         file_count="directory",
-                        #file_types=["file"],  #Warning: The `file_types` parameter is ignored when `file_count` is 'directory'
+                        file_types= file_types_list,   #["file"],  #Warning: The `file_types` parameter is ignored when `file_count` is 'directory'
                         #height=25,  #"0.5",
                         size="sm",
                         elem_classes=["gradio-upload-btn"]
@@ -702,8 +693,8 @@ def build_interface() -> gr.Blocks:
                 output_textbox = gr.Textbox(label="Accumulated Files", lines=3) #, max_lines=4)  #10
             
             with gr.Row():
-                process_button = gr.Button("Process All Uploaded Files", variant="primary")
-                clear_button = gr.Button("Clear All Uploads", variant="secondary")
+                process_button = gr.Button("Process All Uploaded Files", variant="primary", interactive=False)
+                clear_button = gr.Button("Clear All Uploads", variant="secondary", interactive=False)
 
 
         # --- PDF → Markdown tab ---
@@ -890,8 +881,10 @@ def build_interface() -> gr.Blocks:
             """
             #msg = f"Files list cleared: {do_logout()}"  ## use as needed
             msg = f"Files list cleared."
-            yield [], msg, '', ''
+            #yield [], msg, '', ''
             #return [], f"Files list cleared.", [], []
+            yield [], msg, None, None
+            return [], f"Files list cleared.", None, None
 
         #hf_login_logout_btn.click(fn=custom_do_logout, inputs=None, outputs=hf_login_logout_btn)
         ##unused
@@ -905,14 +898,14 @@ def build_interface() -> gr.Blocks:
         file_btn.upload(
             fn=accumulate_files,
             inputs=[file_btn, uploaded_file_list],
-            outputs=[uploaded_file_list, output_textbox]
+            outputs=[uploaded_file_list, output_textbox, process_button, clear_button]
         )
 
         # Event handler for the directory upload button
         dir_btn.upload(
             fn=accumulate_files,
             inputs=[dir_btn, uploaded_file_list],
-            outputs=[uploaded_file_list, output_textbox]
+            outputs=[uploaded_file_list, output_textbox, process_button, clear_button]
         )
 
         # Event handler for the "Clear" button
@@ -957,6 +950,7 @@ def build_interface() -> gr.Blocks:
             output_format_dd,
             output_dir_tb,
             use_llm_cb,
+            force_ocr_cb,
             page_range_tb,
             tz_hours_num,   #state_tz_hours 
         ]

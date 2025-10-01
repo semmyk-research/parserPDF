@@ -1,13 +1,13 @@
 # converters/pdf_to_md.py
 import os
 from pathlib import Path
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Union, Optional
 import traceback  ## Extract, format and print information about Python stack traces.
 import time
 
-#from llm.hf_client import HFChatClient
+from ui.gradio_ui import gr
 from converters.extraction_converter import DocumentConverter  #, DocumentExtractor #as docextractor #ExtractionConverter  #get_extraction_converter  ## SMY: should disuse
-from file_handler.file_utils import collect_pdf_paths, collect_html_paths, collect_markdown_paths, create_outputdir, write_markdown, dump_images
+from file_handler.file_utils import write_markdown, dump_images, collect_pdf_paths, collect_html_paths, collect_markdown_paths, create_outputdir
 
 
 from utils import config
@@ -43,7 +43,9 @@ def init_worker(#self,
     output_format: str,  #: str = "markdown",
     output_dir: str,  #: Union | None = "output_dir",
     use_llm: bool,  #: bool | None = False,
+    force_ocr: bool,
     page_range: str,  #: str | None = None
+    progress: gr.Progress = gr.Progress(),
     ):
     
     #'''
@@ -58,35 +60,6 @@ def init_worker(#self,
     # Define global variables
     global docconverter
     global converter
-    
-
-    ##SMY: kept for future implementation. Replaced with DocumentConverter.
-    '''
-    # 1) Instantiate the DocumentExtractor
-    logger.log(level=20, msg="initialising docextractor:", extra={"model_id": model_id, "hf_provider": hf_provider})
-    try:
-        docextractor = DocumentExtractor(   
-            provider=provider,     
-            model_id=model_id,
-            hf_provider=hf_provider,
-            endpoint_url=endpoint_url,
-            backend_choice=backend_choice,
-            system_message=system_message,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            stream=stream,
-            api_token=api_token,
-        )
-        logger.log(level=20, msg="✔️ docextractor initialised:", extra={"model_id": model_id, "hf_provider": hf_provider})
-    except Exception as exc:
-        #logger.error(f"Failed to initialise DocumentExtractor: {exc}")
-        tb = traceback.format_exc()
-        logger.exception(f"init_worker: Error initialising DocumentExtractor → {exc}\n{tb}", exc_info=True)
-        return f"✗ init_worker: error initialising DocumentExtractor → {exc}\n{tb}"
-    
-    self.docextractor = docextractor
-    '''
 
     #'''
     # 1) Instantiate the DocumentConverter
@@ -105,6 +78,7 @@ def init_worker(#self,
             output_format,  #: str = "markdown",
             output_dir,  #: Union | None = "output_dir",
             use_llm,  #: bool | None = False,
+            force_ocr,
             page_range,  #: str | None = None
         )
         logger.log(level=20, msg="✔️ docextractor initialised:", extra={"docconverter model_id": docconverter.converter.config.get("openai_model"), "docconverter use_llm": docconverter.converter.use_llm, "docconverter output_dir": docconverter.output_dir})
@@ -127,8 +101,9 @@ class PdfToMarkdownConverter:
 
     #def __init__(self, options: Dict | None = None):
     def __init__(self, options: Dict | None = None): #extractor: DocumentExtractor, options: Dict | None = None):
-        self.options = options or {}
+        self.options = options or {}    ##SMY: TOBE implemented - bring all Marker's options
         self.output_dir_string = ''
+        self.output_dir = self.output_dir_string  ## placeholder
         #self.OUTPUT_DIR = config.OUTPUT_DIR     ##flag unused
         #self.MAX_RETRIES = config.MAX_RETRIES   ##flag unused
         #self.docconverter = None  #DocumentConverter
@@ -197,25 +172,28 @@ class PdfToMarkdownConverter:
         return {"file": md_file.name, "images": images_count, "filepath": md_file, "image_path": image_path}  ####SMY should be Dict[str, int, str]. Dicts are not necessarily ordered.
 
     #def convert_files(src_path: str, output_dir: str, max_retries: int = 2) -> str:
-    def convert_files(self, src_path: str, output_dir_string: str = None, max_retries: int = 2) -> Union[Dict, str]:  #str:    
+    #def convert_files(self, src_path: str, output_dir_string: str = None, max_retries: int = 2, progress = gr.Progress()) -> Union[Dict, str]:  #str:    
+    def convert_files(self, src_path: str, max_retries: int = 2, progress = gr.Progress()) -> Union[Dict, str]:
     #def convert_files(self, src_path: str) -> str:    
         """
         Worker task: use `extractor` to convert file with retry/backoff.
         Returns a short log line.
         """
 
-        try:
+        '''try:   ##moved to gradio_ui. sets to PdfToMarkdownConverter.output_dir_string
             output_dir = create_outputdir(root=src_path, output_dir_string=self.output_dir_string)
             logger.info(f"✓ output_dir created: {output_dir}")  #{create_outputdir(src_path)}"            
         except Exception as exc:
             tb = traceback.format_exc()
             logger.exception("✗ error creating output_dir → {exc}\n{tb}", exc_info=True)
-            return f"✗ error creating output_dir → {exc}\n{tb}"
+            return f"✗ error creating output_dir → {exc}\n{tb}"'''
+        output_dir = Path(self.output_dir)  ## takes the value from gradio_ui
 
         try:
             #if Path(src_path).suffix.lower() not in {".pdf", ".html", ".htm"}:
             #if not Path(src_path).name.endswith(tuple({".pdf", ".html"})):  #,".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"})):
-            if not Path(src_path).name.endswith((".pdf", ".html")):  #,".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"})):            
+            #if not Path(src_path).name.endswith((".pdf", ".html", ".docx", ".doc")):  #,".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"})):            
+            if not Path(src_path).name.endswith(config.file_types_tuple):  #,".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"})):
                 logger.log(level=20, msg=f"skipped {Path(src_path).name}", exc_info=True)
                 return f"skipped {Path(src_path).name}"
         except Exception as exc:
@@ -226,7 +204,8 @@ class PdfToMarkdownConverter:
         #max_retries = self.MAX_RETRIES
         for attempt in range(1, max_retries + 1):
             try:
-                info = self.extract(str(src_path), str(output_dir.stem))  #extractor.converter(str(src_path), str(output_dir))  #
+                #info = self.extract(str(src_path), str(output_dir.stem))  #extractor.converter(str(src_path), str(output_dir))  #
+                info = self.extract(str(src_path), str(output_dir))  #extractor.converter(str(src_path), str(output_dir))  #
                 logger.log(level=20, msg=f"✓ : info about extracted {Path(src_path).name}: ", extra={"info": str(info)})
                 '''  ##SMY: moving formating to calling Gradio
                 img_count = info.get("images", 0)
@@ -239,7 +218,7 @@ class PdfToMarkdownConverter:
             except Exception as exc:
                 if attempt == max_retries:
                     tb = traceback.format_exc()
-                    return f"✗ {info.get('file')} → {exc}\n{tb}"
+                    return f"✗ {info.get('file', 'UnboundlocalError: info is None')} → {exc}\n{tb}"
                     #return f"✗ {md_filename} → {exc}\n{tb}"
                 
                 #time.sleep(2 ** attempt)

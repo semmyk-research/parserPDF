@@ -6,15 +6,15 @@ import shutil
 import tempfile
 
 from itertools import chain
-from typing import List, Union, Any, Mapping
+from typing import List, Optional, Union, Any, Mapping
 from PIL import Image
 
 #import utils.config as config   ##SMY: currently unused
 
-##SMY: Might be deprecated vis duplicated. See marker/marker/config/parser.py  ~ https://github.com/datalab-to/marker/blob/master/marker/config/parser.py#L169
+##SMY: flagged: deprecated vis duplicated. See create_temp_folder() and marker/marker/config/parser.py  ~ https://github.com/datalab-to/marker/blob/master/marker/config/parser.py#L169
 #def create_outputdir(root: Union[str, Path], out_dir:Union[str, Path] = None) -> Path:  #List[Path]:
 def create_outputdir(root: Union[str, Path], output_dir_string:str = None) -> Path:  #List[Path]:
-    """ Create output dir under the input folder """
+    """ Create output dir default to Temp """
     
     '''  ##preserved for future implementation if needed again
     root = root if isinstance(root, Path) else Path(root)  
@@ -24,10 +24,12 @@ def create_outputdir(root: Union[str, Path], output_dir_string:str = None) -> Pa
     out_dir = out_dir if out_dir else "output_md"  ## SMY: default to outputdir in config file = "output_md"
     output_dir = root.parent / out_dir  #"md_output"  ##SMY: concatenating output str with src Path
     '''
+    root = create_temp_folder()
 
     ## map to img_path. Opt to putting output within same output_md folder rather than individual source folders
     output_dir_string = output_dir_string if output_dir_string else "output_dir"  ##redundant SMY: default to outputdir in config file = "output_md"
-    output_dir = Path("data") / output_dir_string  #"output_md"  ##SMY: concatenating output str with src Path
+    #output_dir = Path("data") / output_dir_string  #"output_md"  ##SMY: concatenating output str with src Path
+    output_dir = Path(root) / output_dir_string  #"output_md"  ##SMY: concatenating output str with src Path
     output_dir.mkdir(mode=0o2755, parents=True, exist_ok=True)   #,mode=0o2755
     return output_dir
 
@@ -225,6 +227,17 @@ def check_create_file(filename: Union[str, Path]) -> Path:
     
     return filename_path
 
+def create_temp_folder(tempfolder: Optional[str | Path] = ''):
+    """ Create a temp folder Gradio and output_dir if supplied"""
+    # Create a temporary directory in a location where Gradio can access it.
+    #gradio_output_dir = Path(tempfile.gettempdir()) / "gradio_temp_output"/ tempfolder if tempfolder else Path(tempfile.gettempdir()) / "gradio_temp_output"
+    #gradio_output_dir.mkdir(exist_ok=True)    
+    #gradio_output_dir = check_create_dir(gradio_output_dir)
+
+    gradio_output_dir = check_create_dir(Path(tempfile.gettempdir()) / "gradio_temp_output"/ tempfolder if tempfolder else Path(tempfile.gettempdir()) / "gradio_temp_output")
+    
+    return gradio_output_dir
+
 def zip_processed_files(root_dir: str, file_paths: list[str], tz_hours=None, date_format='%d%b%Y_%H-%M-%S') -> Path:
     """
     Creates a zip file from a list of file paths (strings) and returns the Path object.
@@ -247,11 +260,14 @@ def zip_processed_files(root_dir: str, file_paths: list[str], tz_hours=None, dat
         raise ValueError(f"Root directory does not exist: {root_path}")
 
     # Create a temporary directory in a location where Gradio can access it.
-    gradio_output_dir = Path(tempfile.gettempdir()) / "gradio_temp_output"
+    ##SMY: synced with create_temp_folder()
+    '''gradio_output_dir = Path(tempfile.gettempdir()) / "gradio_temp_output"
     #gradio_output_dir.mkdir(exist_ok=True)
     file_utils.check_create_dir(gradio_output_dir)
     final_zip_path = gradio_output_dir / f"outputs_processed_{utils.get_time_now_str(tz_hours=tz_hours, date_format=date_format)}.zip"
-
+    '''
+    final_zip_path = Path(root_dir).parent / f"outputs_processed_{utils.get_time_now_str(tz_hours=tz_hours, date_format=date_format)}.zip"
+    
     # Use a context manager to create the zip file: use zipfile() opposed to shutil.make_archive
     # 'w' mode creates a new file, overwriting if it already exists. 
     zip_unprocessed = 0
@@ -442,7 +458,7 @@ def write_markdown(
     Notes
     -----
     The function is intentionally lightweight: it only handles path resolution,
-    directory creation, and file I/O. All rendering logic should be performed before
+    directory creation, and file I/O. All rendering logic are performed before
     calling this helper.
     """
     src = Path(src_path)
@@ -460,9 +476,11 @@ def write_markdown(
         
         ## Opt to putting output within same output_md folder rather than individual source folders
         #md_path = Path("data\\pdf") / "output_md" / f"{src.stem}" / md_name  ##debug
-        md_path = Path("data") / output_dir / f"{src.stem}" / md_name  ##debug
+        #md_path = Path("data") / output_dir / f"{src.stem}" / md_name  ##debug
+        md_path = Path(output_dir) / f"{src.stem}" / md_name  ##debug
     ##SMY: [resolved] Permission Errno13 - https://stackoverflow.com/a/57454275
-    md_path.parent.mkdir(mode=0o2755, parents=True, exist_ok=True)  ##SMY: create nested md_path if not exists
+    #md_path.parent.mkdir(mode=0o2755, parents=True, exist_ok=True)  ##SMY: create nested md_path if not exists
+    md_path.parent.mkdir(parents=True, exist_ok=True)  ##SMY: md_path now resides in Temp
     md_path.parent.chmod(0)
 
     try:
@@ -531,7 +549,8 @@ def dump_images(
             #img_path = Path(src.parent) / f"{Path(output_dir).stem}" / f"{src.stem}" / img_name
             
             #img_path = Path("data\\pdf") / "output_md" / f"{src.stem}" / img_name  ##debug
-            img_path = Path("data") / output_dir / f"{src.stem}" / img_name  ##debug
+            #img_path = Path("data") / output_dir / f"{src.stem}" / img_name  ##debug
+            img_path = Path(output_dir) / f"{src.stem}" / img_name 
         #img_path.mkdir(mode=0o777, parents=True, exist_ok=True)  ##SMY: create nested img_path if not exists
         #img_path.parent.mkdir(parents=True, exist_ok=True)
 

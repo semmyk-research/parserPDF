@@ -82,11 +82,11 @@ requires-python: ">=3.12"
 [![Python](https://img.shields.io/badge/Python->=3.12-blue?logo=python)](https://www.python.org/)
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow?logo=mit)](LICENSE)
 
-A Gradio-based web application for converting PDF and HTML documents to Markdown format. Powered by the Marker library (a pipeline of deep learning models for document parsing) and optional LLM integration for enhanced processing. Supports batch processing of files and directories via an intuitive UI.
+A Gradio-based web application for converting PDF, HTML and Word documents to Markdown format. Powered by the Marker library (a pipeline of deep learning models for document parsing) and optional LLM integration for enhanced processing. Supports batch processing of files and directories via an intuitive UI.
 
 ## Features
-- **PDF to Markdown**: Extract text, tables, and images from PDFs using Marker.
-- **HTML to Markdown**: Convert HTML files to clean Markdown.
+- **PDF to Markdown**: Extract text, tables, and images from PDFs, HTMLs and Word documents using Marker.
+- **HTML to Markdown**: Convert HTML files to clean Markdown. #Deprecated
 - **Batch Processing**: Upload multiple files or entire directories.
 - **LLM Integration**: Optional use of Hugging Face or OpenAI models for advanced conversion (e.g., via Llama or GPT models).
 - **Customizable Settings**: Adjust model parameters, output formats (Markdown/HTML), page ranges, and more via the UI.
@@ -104,21 +104,21 @@ parserpdf/
 ├── converters/                 # Conversion logic
 │   ├── __init__.py
 │   ├── extraction_converter.py # Document extraction utilities
-│   ├── pdf_to_md.py            # Marker-based PDF → Markdown
-│   ├── html_to_md.py           # HTML → Markdown
+│   ├── pdf_to_md.py            # Marker-based PDF, HTML, Word → Markdown
+│   ├── html_to_md.py           # HTML → Markdown  #Deprecated
 │   └── md_to_pdf.py            # Markdown → PDF (pending full implementation)
 ├── file_handler/               # File handling utilities
 │   ├── __init__.py
 │   └── file_utils.py           # Helpers for files, directories, and paths
 ├── llm/                        # LLM client integrations
 │   ├── __init__.py
-│   ├── hf_client.py            # Hugging Face client wrapper
-│   ├── openai_client.py        # Marker OpenAI client
+│   ├── hf_client.py            # Hugging Face client wrapper  ##PutOnHold
+│   ├── openai_client.py        # Marker OpenAI client         ##NotFullyImplemented
 │   ├── llm_login.py            # Authentication handlers
 │   └── provider_validator.py   # Provider validation
 ├── ui/                         # Gradio UI components
 │   ├── __init__.py
-│   └── gradio_ui.py            # UI layout and event handlers
+│   └── gradio_ui.py            # UI layout, event handlers and coordination
 ├── utils/                      # Utility modules
 │   ├── __init__.py
 │   ├── config.py               # Configuration constants
@@ -132,8 +132,8 @@ parserpdf/
 │   ├── output_dir/             # Output directory
 │   ├── pdf/                    # Sample PDFs
 ├── logs/                       # Log files (gitignored)
-├── tests/                      # Unit tests
-├── tests_converter.py          # tests for converters
+├── tests/                      # Unit tests   ##ToBeUpdated
+│   ├── tests_converter.py          # tests for converters
 └── scrapyard/                  # Development scraps
 
 
@@ -165,10 +165,11 @@ parserpdf/
      HF_TOKEN=hf_xxx
      OPENAI_API_KEY=sk-xxx
      ```
+   - HuggingFace login (oauth) integrated with Gradio:
 
 4. Install Marker (if not in requirements.txt):
    ```
-   pip install marker-pdf
+   pip install marker-pdf[full]
    ```
 
 ## Usage
@@ -180,7 +181,7 @@ parserpdf/
 2. Open the provided local URL (e.g., http://127.0.0.1:7860) in your browser.
 
 3. In the UI:
-   - Upload PDF/HTML files or directories via the "PDF & HTML ➜ Markdown" tab.
+   - Upload PDF/HTML/Word files or directories via the "PDF, HTML & Word ➜ Markdown" tab.
    - Configure LLM/Marker settings in the accordions (e.g., select provider, model, tokens).
    - Click "Process All Uploaded Files" to convert.
    - View logs, JSON output, and download generated Markdown files.
@@ -208,13 +209,15 @@ parserpdf/
 ## Limitations & TODO
 - Markdown → PDF is pending full implementation.
 - HTML tab is deprecated; use main tab for mixed uploads.
-- Large files/directories may require increased `max_workers`.
+- Large files/directories may require increased `max_workers` and higher processing power.
 - No JSON/chunks output yet (flagged for future).
 
 ## Contributing
 Fork the repo, create a branch, and submit a PR. 
+- GitHub
+- HuggingFace Space Community
 
-Ensure tests pass: - verify the application's functionality.
+Ensure tests pass: - verify the application's functionality. ##TardyOutdated
 ```
 pytest tests/
 ```

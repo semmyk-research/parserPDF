@@ -53,6 +53,7 @@ class DocumentConverter:
         output_format: str = "markdown",
         output_dir: Optional[Union[str, Path]] = "output_dir",
         use_llm: Optional[bool] = None,  #bool = False,  #Optional[bool] = False,  #True,
+        force_ocr: Optional[bool] = None, #bool = False,
         page_range: Optional[str] = None,  #str = None  #Optional[str] = None,  
         ):
 
@@ -68,6 +69,7 @@ class DocumentConverter:
         self.max_retries = max_retries  ## pass to __call__
         self.output_dir = output_dir    ## "output_dir": settings.DEBUG_DATA_FOLDER if debug else output_dir,
         self.use_llm = use_llm if use_llm else False  #use_llm[0] if isinstance(use_llm, tuple) else use_llm,  #False,  #True,
+        self.force_ocr = force_ocr if force_ocr else False
         #self.page_range = page_range[0] if isinstance(page_range, tuple) else page_range   ##SMY: iterating twice because self.page casting as hint type tuple!
         self.page_range = page_range if page_range else None
         # self.page_range = page_range[0] if isinstance(page_range, tuple) else page_range if isinstance(page_range, str) else None,  ##Example: "0,4-8,16"  ##Marker parses as List[int]  #]debug  #len(pdf_file)
@@ -80,6 +82,7 @@ class DocumentConverter:
 
         # 0) Instantiate the LLM Client (OPENAIChatClient): Get a provider‐agnostic chat function
         ##SMY: #future. Plan to integrate into Marker: uses its own LLM services (clients). As at 1.9.2, there's no huggingface client service.
+        '''
         try:
             self.client = OpenAIChatClient(
             model_id=model_id,
@@ -95,16 +98,17 @@ class DocumentConverter:
             tb = traceback.format_exc()   #exc.__traceback__
             logger.exception(f"✗ Error initialising OpenAIChatClient: {exc}\n{tb}")
             raise RuntimeError(f"✗ Error initialising OpenAIChatClient: {exc}\n{tb}")  #.with_traceback(tb)
-
+        '''
         # 1) # Define the custom configuration for the Hugging Face LLM.
                 # Use typing.Dict and typing.Any for flexible dictionary type hints 
         try:
             self.config_dict: Dict[str, Any] = self.get_config_dict(model_id=model_id, llm_service=str(self.llm_service), output_format=output_format)
-            #self.config_dict.pop("page_range") if self.config_dict.get("page_range")[0] is None else None  ##SMY: execute if page_range is none. `else None` ensures valid syntactic expression
-
+            
+            ##SMY: execute if page_range is none. `else None` ensures valid syntactic expression
             ##SMY: if falsely empty tuple () or None, pop the "page_range" key-value pair, else do nothing if truthy tuple value (i.e. keep as-is)
             self.config_dict.pop("page_range", None) if not self.config_dict.get("page_range") else None
             self.config_dict.pop("use_llm", None) if not self.config_dict.get("use_llm") or self.config_dict.get("use_llm") is False or self.config_dict.get("use_llm") == 'False'  else None
+            self.config_dict.pop("force_ocr", None) if not self.config_dict.get("force_ocr") or self.config_dict.get("force_ocr") is False or self.config_dict.get("force_ocr") == 'False'  else None
 
             logger.log(level=20, msg="✔️ config_dict custom configured:", extra={"service": "openai"})  #, "config": str(self.config_dict)})
 
@@ -124,27 +128,17 @@ class DocumentConverter:
             logger.exception(f"✗ Error parsing/processing custom config_dict: {exc}\n{tb}")
             raise RuntimeError(f"✗ Error parsing/processing custom config_dict: {exc}\n{tb}")  #.with_traceback(tb)
         
-        # 3) Create the artifact dictionary and retrieve the LLM service.  ##SMY: disused
-        try:
-            ##self.artifact_dict: Dict[str, Any] = self.get_create_model_dict  ##SMY: Might have to eliminate function afterall
-            #self.artifact_dict: Dict[str, Type[BaseModel]] = create_model_dict()  ##SMY: BaseModel for Any??
-            self.artifact_dict = {}  ##dummy
-            ##logger.log(level=20, msg="✔️ Create artifact_dict and llm_service retrieved:", extra={"llm_service": self.llm_service})
-        
-        except Exception as exc:
-            tb = traceback.format_exc()   #exc.__traceback__
-            logger.exception(f"✗ Error creating artifact_dict or retrieving LLM service: {exc}\n{tb}")
-            raise RuntimeError(f"✗ Error creating artifact_dict or retrieving LLM service: {exc}\n{tb}")  #.with_traceback(tb)
-
-        # 4) Load models if not already loaded in reload mode
+        # 3) Load models if not already loaded in reload mode
         from globals import config_load_models
         try:
-            if not config_load_models.model_dict or 'model_dict' not in globals():
+            if config_load_models.model_dict: 
+                model_dict = config_load_models.model_dict
+            #elif not config_load_models.model_dict or 'model_dict' not in globals():
+            else:
                 model_dict = load_models()
                 '''if 'model_dict' not in globals():
                     #model_dict = self.load_models()
                     model_dict = load_models()'''
-            else: model_dict = config_load_models.model_dict
         except OSError as exc_ose:
             tb = traceback.format_exc()   #exc.__traceback__
             logger.warning(f"⚠️ OSError: the paging file is too small (to complete reload): {exc_ose}\n{tb}")
@@ -153,30 +147,28 @@ class DocumentConverter:
             tb = traceback.format_exc()   #exc.__traceback__
             logger.exception(f"✗ Error loading models (reload): {exc}\n{tb}")
             raise RuntimeError(f"✗ Error loading models (reload): {exc}\n{tb}")  #.with_traceback(tb)
-
         
-        # 5) Instantiate Marker's MarkerConverter (PdfConverter) with config managed by config_parser
+        # 4) Instantiate Marker's MarkerConverter (PdfConverter) with config managed by config_parser
         try:  # Assign llm_service if api_token.  ##SMY: split and slicing  ##Gets the string value
             llm_service_str = None if api_token == '' or api_token is None or self.use_llm is False else str(self.llm_service).split("'")[1]  #
 
             # sets api_key required by Marker ## to handle Marker's assertion test on OpenAI
-            #os.environ["OPENAI_API_KEY"] = api_token if api_token !='' or api_token is not None else self.openai_api_key  ##SMY: looks lame
-            os.environ["OPENAI_API_KEY"] = api_token if api_token and api_token != '' else os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
-            #logger.log(level=20, msg="self.converter: instantiating MarkerConverter:", extra={"llm_service_str": llm_service_str, "api_token": api_token})  ##debug
+            if llm_service_str:
+                os.environ["OPENAI_API_KEY"] = api_token if api_token and api_token != '' else os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY") or os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
+                #logger.log(level=20, msg="self.converter: instantiating MarkerConverter:", extra={"llm_service_str": llm_service_str, "api_token": api_token})  ##debug
             
             config_dict = config_parser.generate_config_dict()
-            #config_dict["pdftext_worker"] = self.max_workers  #1  ##SMY: move to get_config_dicts()
+            #config_dict["pdftext_worker"] = self.max_workers  #1  ##SMY: moved to get_config_dicts()
 
-            #self.converter: MarkerConverter = MarkerConverter(
+            #self.converter: marker.converters.pdf.PdfConverter
             self.converter = MarkerConverter(
-                ##artifact_dict=self.artifact_dict,
                 #artifact_dict=create_model_dict(),
                 artifact_dict=model_dict if model_dict else create_model_dict(),
                 config=config_dict,
                 #config=config_parser.generate_config_dict(),
                 #llm_service=self.llm_service  ##SMY expecting str but self.llm_service, is service object marker.services of type BaseServices
                 llm_service=llm_service_str,    ##resolve
-            )
+                )
             
             logger.log(level=20, msg="✔️ MarkerConverter instantiated successfully:", extra={"converter.config": str(self.converter.config.get("openai_base_url")), "use_llm":self.converter.use_llm})
             #return self.converter  ##SMY: to query why did I comment out?. Bingo: "__init__() should return None, not 'PdfConverter'"
@@ -187,21 +179,20 @@ class DocumentConverter:
         
         # Define the custom configuration for HF LLM.
     def get_config_dict(self, model_id: str, llm_service=MarkerOpenAIService, output_format: Optional[str] = "markdown" ) -> Dict[str, Any]:
-        """ Define the custom configuration for the Hugging Face LLM. """
+        """ Define the custom configuration for the Hugging Face LLM: combining Markers cli_options and LLM. """
 
         try:
-            ## Enable higher quality processing with LLMs.  ## See MarkerOpenAIService,  
-            # llm_service disused here
+            ## LLM Enable higher quality processing.  ## See MarkerOpenAIService,  
             ##llm_service = llm_service.removeprefix("<class '").removesuffix("'>")  # e.g <class 'marker.services.openai.OpenAIService'>
             #llm_service  = str(llm_service).split("'")[1]  ## SMY: split and slicing
             self.use_llm = self.use_llm[0] if isinstance(self.use_llm, tuple) else self.use_llm
             self.page_range = self.page_range[0] if isinstance(self.page_range, tuple) else self.page_range #if isinstance(self.page_range, str) else None,  ##SMY: passing as hint type tuple!
             
-
+            ##SMY: TODO: convert to {inputs} and called from gradio_ui
             config_dict = {
                 "output_format" : output_format,     #"markdown",
                 "openai_model"   : self.model_id,    #self.client.model_id,  #"model_name"
-                "openai_api_key" : self.client.openai_api_key,   #self.client.openai_api_key,  #self.api_token,
+                "openai_api_key" : self.openai_api_key,   #self.client.openai_api_key,  #self.api_token,
                 "openai_base_url": self.openai_base_url,  #self.client.base_url,  #self.base_url,
                 "temperature"    : self.temperature,      #self.client.temperature,
                 "top_p"          : self.top_p,            #self.client.top_p,
@@ -210,6 +201,7 @@ class DocumentConverter:
                 "max_retries"    : self.max_retries,  #3,  ## pass to __call__
                 "output_dir"     : self.output_dir,
                 "use_llm"        : self.use_llm,      #False,  #True,
+                "force_ocr"      : self.force_ocr,    #False,
                 "page_range"     : self.page_range,   ##debug  #len(pdf_file)
             }
             return config_dict
@@ -218,10 +210,6 @@ class DocumentConverter:
             logger.exception(f"✗ Error configuring custom config_dict: {exc}\n{tb}")
             raise RuntimeError(f"✗ Error configuring custom config_dict: {exc}\n{tb}")  #").with_traceback(tb)
             #raise
-
-    ''' # create/load models. Called to curtail reloading models at each instance
-    def load_models():
-        return create_model_dict()'''
 
     ##SMY: flagged for deprecation
     ##SMY: marker prefer default artifact dictionary (marker.models.create_model_dict) instead of overridding

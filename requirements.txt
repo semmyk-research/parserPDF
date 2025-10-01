@@ -1,5 +1,8 @@
-gradio>=5.44.0
-marker-pdf[full]>=1.10.0           # pip install marker (GitHub: https://github.com/datalab-to/marker)
-weasyprint>=59.0       # optional fallback if pandoc is not available
-#pandoc==2.3            # for Markdown → PDF conversion
-python-magic==0.4.27    # file‑type detection
+gradio>=5.44.0              # gradio[mcp]>=5.44.0
+#mcp>=1.15.0                # MCP Python SDK (Model Coontext Protocol)
+marker-pdf[full]>=1.10.0    # pip install marker (GitHub: https://github.com/datalab-to/marker)
+weasyprint>=59.0            # optional fallback if pandoc is not available
+#pandoc==2.3                # for Markdown → PDF conversion
+python-magic==0.4.27        # file‑type detection
+#pdfdfium2                  # Python binding to PDFium for PDF rendering, inspection, manipution and creation
+#huggingface_hub>=0.34.0    # HuggingFace integration

@@ -5,6 +5,7 @@ from time import sleep
 from typing import Optional
 
 from utils.logger import get_logger
+from ui.gradio_ui import gr
 
 ## Get logger instance
 logger = get_logger(__name__)
@@ -13,6 +14,19 @@ def disable_immplicit_token():
     # Disable implicit token propagation for determinism
     # Explicitly disable implicit token propagation; we rely on explicit auth or env var
     os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
+
+#def get_login_token( api_token_arg, oauth_token: gr.OAuthToken | None=None,):
+def get_login_token( api_token_arg, oauth_token):
+    """ Use user's supplied token or Get token from logged-in users, else from token stored on the  machine. Return token"""
+    #oauth_token = get_token() if oauth_token is not None else api_token_arg
+    if api_token_arg != '':  # or not None:  #| None:
+        oauth_token = api_token_arg
+    elif oauth_token:
+        oauth_token = oauth_token.token
+    else: oauth_token = '' if not get_token() else get_token()
+    
+    #return str(oauth_token) if oauth_token else ''  ##token value or empty string
+    return oauth_token if oauth_token else ''  ##token value or empty string
 
 def login_huggingface(token: Optional[str] = None):
     """
