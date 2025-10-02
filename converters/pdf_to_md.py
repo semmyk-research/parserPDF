@@ -5,10 +5,8 @@ from typing import List, Dict, Union, Optional
 import traceback  ## Extract, format and print information about Python stack traces.
 import time
 
-from ui.gradio_ui import gr
 from converters.extraction_converter import DocumentConverter  #, DocumentExtractor #as docextractor #ExtractionConverter  #get_extraction_converter  ## SMY: should disuse
 from file_handler.file_utils import write_markdown, dump_images, collect_pdf_paths, collect_html_paths, collect_markdown_paths, create_outputdir
-
 
 from utils import config
 from utils.lib_loader import set_weasyprint_library
@@ -45,9 +43,7 @@ def init_worker(#self,
     use_llm: bool,  #: bool | None = False,
     force_ocr: bool,
     page_range: str,  #: str | None = None
-    progress: gr.Progress = gr.Progress(),
     ):
-    
     #'''
     """ 
     instantiate DocumentConverter/DocumentExtractor for use in each pool worker
@@ -64,6 +60,7 @@ def init_worker(#self,
     #'''
     # 1) Instantiate the DocumentConverter
     logger.log(level=20, msg="initialising docconverter:", extra={"model_id": model_id, "hf_provider": hf_provider})  ##debug
+
     try:
         docconverter = DocumentConverter(
             model_id,  #: str,
@@ -121,10 +118,12 @@ class PdfToMarkdownConverter:
         Returns a dict with metadata, e.g. {"filename": <file.name>, "images": <count>, "filepath": <filepath>}.
         """
         
+        from globals import config_load_models
         try:
             ## SMY: TODO: convert htmls to PDF. Marker will by default attempt weasyprint which typically raise 'libgobject-2' error on Win
+            weasyprint_libpath = config_load_models.weasyprint_libpath if config_load_models.weasyprint_libpath else None
             # Set a new environment variable
-            set_weasyprint_library()  ##utils.lib_loader.set_weasyprint_library()
+            set_weasyprint_library(weasyprint_libpath)  ##utils.lib_loader.set_weasyprint_library()
         except Exception as exc:
             tb = traceback.format_exc()
             logger.exception(f"Error loading weasyprint backend dependency → {exc}\n{tb}", exc_info=True)  # Log the full traceback
@@ -173,7 +172,7 @@ class PdfToMarkdownConverter:
 
     #def convert_files(src_path: str, output_dir: str, max_retries: int = 2) -> str:
     #def convert_files(self, src_path: str, output_dir_string: str = None, max_retries: int = 2, progress = gr.Progress()) -> Union[Dict, str]:  #str:    
-    def convert_files(self, src_path: str, max_retries: int = 2, progress = gr.Progress()) -> Union[Dict, str]:
+    def convert_files(self, src_path: str, max_retries: int = 2) -> Union[Dict, str]:
     #def convert_files(self, src_path: str) -> str:    
         """
         Worker task: use `extractor` to convert file with retry/backoff.

@@ -6,6 +6,8 @@ class Config:
     """ Single model_dict use across the app"""
     def __init__(self):
         self.model_dict = {}
+        self.weasyprint_libpath = ""
+        self.config_ini = "utils\\config.ini"
 
 # Create a single, shared instance of the Config class
 # Other modules will import and use this instance.

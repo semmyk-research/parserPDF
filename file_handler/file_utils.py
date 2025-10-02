@@ -479,8 +479,8 @@ def write_markdown(
         #md_path = Path("data") / output_dir / f"{src.stem}" / md_name  ##debug
         md_path = Path(output_dir) / f"{src.stem}" / md_name  ##debug
     ##SMY: [resolved] Permission Errno13 - https://stackoverflow.com/a/57454275
-    #md_path.parent.mkdir(mode=0o2755, parents=True, exist_ok=True)  ##SMY: create nested md_path if not exists
-    md_path.parent.mkdir(parents=True, exist_ok=True)  ##SMY: md_path now resides in Temp
+    md_path.parent.mkdir(mode=0o2755, parents=True, exist_ok=True)  ##SMY: create nested md_path if not exists
+    #md_path.parent.mkdir(parents=True, exist_ok=True)  ##SMY: md_path now resides in Temp
     md_path.parent.chmod(0)
 
     try:

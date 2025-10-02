@@ -20,13 +20,14 @@ def set_weasyprint_library(libpath: Union[str, Path] = None, config_file: Union[
         
         #libgobject_path =  #"/path/to/your/custom/glib/install/lib/libgobject-2.0.so.0"
         if not libpath:
-            '''cfg = config()
-            cfg.read(config_file)  #"utils\\config.ini")
-            lib_path = cfg["LIBRARIES_CAP"].get(f"WEASYPRINT_DLL_DIRECTORIES", "C:\\Dat\\dev\\gtk3-runtime\\bin")
-            '''
-            from file_handler.file_utils import find_file
-            config_file = find_file("config.ini")  ##from file_handler.file_utils
-            lib_path = get_config_value(config_file, "LIBRARIES_CAP", "WEASYPRINT_DLL_DIRECTORIES") if not libpath else "C:\\msys64\\mingw64\\bin"
+            #from file_handler.file_utils import find_file
+            #config_file = find_file("config.ini")  ##from file_handler.file_utils
+            
+            ## Alternate to speed up while sacrificing 
+            from globals import config_load_models
+            config_file = config_load_models.config_ini
+
+            lib_path = get_config_value(Path(config_file), "LIBRARIES_CAP", "WEASYPRINT_DLL_DIRECTORIES") if not libpath else "C:\\msys64\\mingw64\\bin"
 
             # Check if the file exists before attempting to load it
             #if not os.path.exists(libobject):

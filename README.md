@@ -193,7 +193,8 @@ parserpdf/
 - Process: Outputs Markdown files with extracted text/images to `output_dir`.
 
 ## Configuration
-- Edit `utils/config.py` or `utils/config.ini` for defaults (e.g., model ID, output dir).
+- Edit `utils/config.ini` or `utils/config.py` for defaults (e.g., model ID, output dir).
+- On windows, set weasyprint's GTK path: e.g. "C:\\Dat\\dev\\gtk3-runtime\\bin" or "C:\\msys64\\mingw64\\bin"
 - UI overrides: Adjust sliders for max tokens, temperature, workers, etc.
 
 ## LLM Providers

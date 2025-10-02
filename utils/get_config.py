@@ -35,6 +35,7 @@ def get_config_value(config_file:Path, section_key:str, parameter:str, fallback:
     try:
         #config_file = find_config(config_file)
         cfg = config()
+        config_file = config_file if isinstance(config_file, Path) else Path(config_file)
         if config_file.is_file():
             cfg.read(config_file)
             param_value = cfg[section_key].get(option=parameter, fallback=fallback)  #"C:\\Dat\\dev\\gtk3-runtime\\bin")
