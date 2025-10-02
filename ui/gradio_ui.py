@@ -2,6 +2,7 @@
 from ast import Interactive
 import gradio as gr
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import tqdm
 import asyncio   ##future
 import time
 
@@ -9,6 +10,7 @@ from pathlib import Path, WindowsPath
 from typing import Optional, Union #, Dict, List, Any, Tuple
 
 from huggingface_hub import get_token
+import spaces    ##HuggingFace spaces to accelerate GPU support on HF Spaces
 
 #import file_handler
 from file_handler import file_utils
@@ -57,6 +59,7 @@ except Exception as exc:
 # pool executor to convert files called by Gradio
 ##SMY: TODO: future: refactor to gradio_process.py and 
 ## pull options to cli-options{"output_format":, "output_dir_string":, "use_llm":, "page_range":, "force_ocr":, "debug":, "strip_existing_ocr":, "disable_ocr_math""}
+@spaces.GPU
 def convert_batch(
     pdf_files, #: list[str],
     pdf_files_count: int,
@@ -246,7 +249,7 @@ def convert_batch(
                 time.sleep(0.25)
                 yield gr.update(interactive=True), f"ProcessPoolExecutor: Pooling file conversion ...", {"process": "Processing files ..."}, f"dummy_log.log"
                 
-                # Use progress.tqdm to integrate with the executor map
+                '''# Use progress.tqdm to integrate with the executor map
                 #results = pool.map(pdf2md_converter.convert_files, pdf_files)  ##SMY iterables  #max_retries #output_dir_string)
                 for result_interim in progress.tqdm(
                     iterable=pool.map(pdf2md_converter.convert_files, pdf_files),  #, max_retries), total=len(pdf_files)
@@ -257,9 +260,25 @@ def convert_batch(
                     #yield gr.update(interactive=True), f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]", {"process": "Processing files ..."}, f"dummy_log.log"
                     #progress((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]")
                     #progress2((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]")
-                    #time.sleep(0.25)
-                    
-                yield gr.update(interactive=True), f"ProcessPoolExecutor: Got Results from files conversion: [{str(result_interim)}[:20]]", {"process": "Processing files ..."}, f"dummy_log.log"
+                    #time.sleep(0.25)'''
+                def get_results_pool_map(pdf_files, pdf_files_count, progress2=gr.Progress()):
+                    #Use progress.tqdm to integrate with the executor map
+                    #results = pool.map(pdf2md_converter.convert_files, pdf_files)  ##SMY iterables  #max_retries #output_dir_string)
+                    for result_interim in progress2.tqdm(
+                        iterable=pool.map(pdf2md_converter.convert_files, pdf_files),  #, max_retries), total=len(pdf_files)
+                        desc=f"ProcessPoolExecutor: Pooling file conversion ... pool.map",
+                        total=pdf_files_count):
+                        results.append(result_interim)
+
+                        # Update the Gradio UI to improve user-friendly eXperience
+                        #yield gr.update(interactive=True), f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]", {"process": "Processing files ..."}, f"dummy_log.log"
+                        progress2((0,len(pdf_files)), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]")
+                        #progress2((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]")
+                        time.sleep(0.75)  #.sleep(0.25)
+                        
+                        return results
+                results = get_results_pool_map(pdf_files, pdf_files_count)
+                yield gr.update(interactive=True), f"ProcessPoolExecutor: Got Results from files conversion: [{str(results)}[:20]]", {"process": "Processing files ..."}, f"dummy_log.log"
                 progress((11,16), desc=f"ProcessPoolExecutor: Got Results from files conversion")
                 time.sleep(0.25)
             except Exception as exc:
@@ -526,6 +545,8 @@ def build_interface() -> gr.Blocks:
         # Concatenate the new files with the existing ones in the state
         updated_files = current_state + new_file_paths
         updated_filenames = [Path(f).name for f in updated_files]
+
+        updated_files_count = len(updated_files)
         
         # Return the updated state and a message to the user
         #file_info = "\n".join(updated_files)
@@ -533,7 +554,7 @@ def build_interface() -> gr.Blocks:
         #message = f"Accumulated {len(updated_files)} file(s) total.\n\nAll file paths:\n{file_info}"
         message = f"Accumulated {len(updated_files)} file(s) total: \n{filename_info}"
         
-        return updated_files, message, gr.update(interactive=True), gr.update(interactive=True)
+        return updated_files, updated_files_count, message, gr.update(interactive=True), gr.update(interactive=True)
 
     # with gr.Blocks(title=TITLE) as demo
     with gr.Blocks(title=TITLE, css=custom_css) as demo:
@@ -685,9 +706,6 @@ def build_interface() -> gr.Blocks:
 
             logout_status_md = gr.Markdown(visible=True)  #visible=False)
         
-        # The gr.State component to hold the accumulated list of files
-        uploaded_file_list = gr.State([])   ##NB: initial value of `gr.State` must be able to be deepcopied
-
         # --- PDF & HTML → Markdown tab ---
         with gr.Tab(" 📄 PDF & HTML ➜ Markdown"):
             gr.Markdown(f"#### {DESCRIPTION_PDF_HTML}")
@@ -742,7 +760,7 @@ def build_interface() -> gr.Blocks:
         with gr.Tab(" 📄 PDF ➜ Markdown (Flag for DEPRECATION)", interactive=False, visible=True):  #False
             gr.Markdown(f"#### {DESCRIPTION_PDF}")
 
-            files_upload_pdf = gr.File(
+            files_upload_pdf_fl = gr.File(
                 label="Upload PDF files",
                 file_count="directory", ## handle directory and files upload #"multiple",
                 type="filepath",
@@ -821,10 +839,15 @@ def build_interface() -> gr.Blocks:
                 label="Conversion Logs",
                 lines=5,
                 #max_lines=25,
-                #interactive=False
+                interactive=True,  #False
+                show_label=False,
             )
 
         # Initialise gr.State
+        # The gr.State component to hold the accumulated list of files
+        uploaded_file_list = gr.State([])   ##NB: initial value of `gr.State` must be able to be deepcopied
+        uploaded_files_count = gr.State(0)   ## initial files count
+
         state_max_workers = gr.State(4)  #max_workers_sl,
         state_max_retries = gr.State(2) #max_retries_sl,
         state_tz_hours    = gr.State(value=None)
@@ -925,7 +948,7 @@ def build_interface() -> gr.Blocks:
             #yield [], msg, '', ''
             #return [], f"Files list cleared.", [], []
             yield [], msg, None, None
-            return [], f"Files list cleared.", None, None
+            return [], 0, f"Files list cleared.", None, None
 
         #hf_login_logout_btn.click(fn=custom_do_logout, inputs=None, outputs=hf_login_logout_btn)
         ##unused
@@ -939,14 +962,14 @@ def build_interface() -> gr.Blocks:
         file_btn.upload(
             fn=accumulate_files,
             inputs=[file_btn, uploaded_file_list],
-            outputs=[uploaded_file_list, output_textbox, process_button, clear_button]
+            outputs=[uploaded_file_list, uploaded_files_count, output_textbox, process_button, clear_button]
         )
 
         # Event handler for the directory upload button
         dir_btn.upload(
             fn=accumulate_files,
             inputs=[dir_btn, uploaded_file_list],
-            outputs=[uploaded_file_list, output_textbox, process_button, clear_button]
+            outputs=[uploaded_file_list, uploaded_files_count, output_textbox, process_button, clear_button]
         )
 
         # Event handler for the "Clear" button
@@ -966,11 +989,12 @@ def build_interface() -> gr.Blocks:
         ## and then use the return value of the function to update the component.
         ## Discarding for now. #//TODO: investigate further.
         ## SMY: Solved: using gr.State 
+        
         inputs_arg = [
             #pdf_files,
             ##pdf_files_wrap(pdf_files),  # wrap pdf_files in a list (if not already)
             uploaded_file_list,
-            files_count,  #pdf_files_count,
+            uploaded_files_count,  #files_count,  #pdf_files_count,
             provider_dd,
             model_tb,
             hf_provider_dd,
@@ -1017,10 +1041,12 @@ def build_interface() -> gr.Blocks:
 
         ##gr.File .upload() event, fire only after a file has been uploaded
         # Event handler for the pdf file upload button
-        files_upload_pdf.upload(
+        ##TODO:
+        #outputs=[uploaded_file_list, updated_files_count, output_textbox, process_button, clear_button]
+        files_upload_pdf_fl.upload(
             fn=accumulate_files,
-            inputs=[files_upload_pdf, uploaded_file_list],
-            outputs=[uploaded_file_list, log_output]
+            inputs=[files_upload_pdf_fl, uploaded_file_list],
+            outputs=[uploaded_file_list, uploaded_files_count, log_output, files_upload_pdf_fl, clear_button]
         )
         #inputs_arg[0] = files_upload
         btn_pdf_convert.click(
@@ -1061,7 +1087,7 @@ def build_interface() -> gr.Blocks:
         
         btn_pdf_count.click(
             fn=get_file_count,
-            inputs=[files_upload_pdf],
+            inputs=[files_upload_pdf_fl],
             outputs=[files_count, log_output]
         )
         btn_html_count.click(

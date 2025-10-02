@@ -1,8 +1,19 @@
 gradio>=5.44.0              # gradio[mcp]>=5.44.0
 #mcp>=1.15.0                # MCP Python SDK (Model Coontext Protocol)
+
+#gradio[mcp]>=5.44.0        # Gradio as MCP Server
+#pydantic>=2.11.7           # dependants: Marker-pdf and Gradio[mcp]
+
+## HF Spaces recommendation: https://huggingface.co/docs/hub/spaces-gpus#frameworks
+space--extra-index-url https://download.pytorch.org/whl/cu113
+#torch
+torch>=2.7.1                # ZeroGPU support
+spaces>=0.42.1              # HF Spaces (default on HF Spaces
+#huggingface_hub>=0.34.0    # HuggingFace integration
+
 marker-pdf[full]>=1.10.0    # pip install marker (GitHub: https://github.com/datalab-to/marker)
 weasyprint>=59.0            # optional fallback if pandoc is not available
 #pandoc==2.3                # for Markdown → PDF conversion
-python-magic==0.4.27        # file‑type detection
 #pdfdfium2                  # Python binding to PDFium for PDF rendering, inspection, manipution and creation
-#huggingface_hub>=0.34.0    # HuggingFace integration
+
+#python-magic==0.4.27        # file‑type detection: thin layer over the libmagic C library
