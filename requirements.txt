@@ -5,9 +5,9 @@ gradio>=5.44.0              # gradio[mcp]>=5.44.0
 #pydantic>=2.11.7           # dependants: Marker-pdf and Gradio[mcp]
 
 ## HF Spaces recommendation: https://huggingface.co/docs/hub/spaces-gpus#frameworks
-space--extra-index-url https://download.pytorch.org/whl/cu113
-#torch
-torch>=2.7.1                # ZeroGPU support
+--extra-index-url https://download.pytorch.org/whl/cu113
+torch
+#torch>=2.7.1                # ZeroGPU support
 spaces>=0.42.1              # HF Spaces (default on HF Spaces
 #huggingface_hub>=0.34.0    # HuggingFace integration
 
