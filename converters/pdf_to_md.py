@@ -6,6 +6,7 @@ import traceback  ## Extract, format and print information about Python stack tr
 import time
 
 import spaces
+from globals import config_load_models
 
 from converters.extraction_converter import DocumentConverter  #, DocumentExtractor #as docextractor #ExtractionConverter  #get_extraction_converter  ## SMY: should disuse
 from file_handler.file_utils import write_markdown, dump_images, collect_pdf_paths, collect_html_paths, collect_markdown_paths, create_outputdir
@@ -21,7 +22,7 @@ docconverter: DocumentConverter = None
 converter = None  #DocumentConverter
 #converter:DocumentConverter.converter = None
 
-@spaces.GPU
+#@spaces.GPU
 # Define docextractor in the pool as serialised object and passed to each worker process.
 # Note: DocumentConverter must be "picklable".
 def init_worker(#self,
@@ -115,7 +116,7 @@ class PdfToMarkdownConverter:
     #duration = 5.75 * pdf_files_count if pdf_files_count>=2 else 7
     #duration = 10
     #@spaces.GPU(duration=duration)   ## HF Spaces GPU support
-    @spaces.GPU
+    #@spaces.GPU
     ## moved from extraction_converter ( to standalone extract_to_md)
     #def extract(self, src_path: str, output_dir: str) -> Dict[str, int, Union[str, Path]]:
     def extract(self, src_path: str, output_dir: str):   #Dict:
@@ -126,7 +127,7 @@ class PdfToMarkdownConverter:
         Returns a dict with metadata, e.g. {"filename": <file.name>, "images": <count>, "filepath": <filepath>}.
         """
         
-        from globals import config_load_models
+        #from globals import config_load_models   ##SMY: moved to top-level import
         try:
             ## SMY: TODO: convert htmls to PDF. Marker will by default attempt weasyprint which typically raise 'libgobject-2' error on Win
             weasyprint_libpath = config_load_models.weasyprint_libpath if config_load_models.weasyprint_libpath else None
@@ -178,6 +179,9 @@ class PdfToMarkdownConverter:
         #return {"images": len(rendered.images), "file": md_file}  ##debug
         return {"file": md_file.name, "images": images_count, "filepath": md_file, "image_path": image_path}  ####SMY should be Dict[str, int, str]. Dicts are not necessarily ordered.
 
+    #duration = 5.75 * pdf_files_count if pdf_files_count>=2 else 7
+    duration = 20*config_load_models.pdf_files_count if config_load_models.pdf_files_count>=10 else 180  ## sec
+    @spaces.GPU(duration=duration)   ## HF Spaces GPU support
     #def convert_files(src_path: str, output_dir: str, max_retries: int = 2) -> str:
     #def convert_files(self, src_path: str, output_dir_string: str = None, max_retries: int = 2, progress = gr.Progress()) -> Union[Dict, str]:  #str:    
     def convert_files(self, src_path: str, max_retries: int = 2) -> Union[Dict, str]:

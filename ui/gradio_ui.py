@@ -161,6 +161,7 @@ def convert_batch(
     page_range = page_range if page_range else get_config_value(config_file,"MARKER_CAP", "PAGE_RANGE")
     weasyprint_dll_directories= weasyprint_dll_directories if weasyprint_dll_directories else None
     config_load_models.weasyprint_libpath = weasyprint_dll_directories  ## Assign user's weasyprint path to Global var
+    config_load_models.pdf_files_count = pdf_files_count
     
     progress((3,16), desc=f"Retrieved configuration values")
     time.sleep(0.25)

@@ -8,6 +8,7 @@ class Config:
         self.model_dict = {}
         self.weasyprint_libpath = ""
         self.config_ini = "utils\\config.ini"
+        self.pdf_files_count = 0
 
 # Create a single, shared instance of the Config class
 # Other modules will import and use this instance.
