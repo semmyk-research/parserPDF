@@ -5,6 +5,8 @@ from typing import List, Dict, Union, Optional
 import traceback  ## Extract, format and print information about Python stack traces.
 import time
 
+import spaces
+
 from converters.extraction_converter import DocumentConverter  #, DocumentExtractor #as docextractor #ExtractionConverter  #get_extraction_converter  ## SMY: should disuse
 from file_handler.file_utils import write_markdown, dump_images, collect_pdf_paths, collect_html_paths, collect_markdown_paths, create_outputdir
 
@@ -108,6 +110,10 @@ class PdfToMarkdownConverter:
 
     # This global will be set (re-initialised) in each worker after init_worker runs
 
+    
+    #duration = 5.75 * pdf_files_count if pdf_files_count>=2 else 7
+    duration = 10
+    @spaces.GPU(duration=duration)   ## HF Spaces GPU support
     ## moved from extraction_converter ( to standalone extract_to_md)
     #def extract(self, src_path: str, output_dir: str) -> Dict[str, int, Union[str, Path]]:
     def extract(self, src_path: str, output_dir: str):   #Dict:
