@@ -23,6 +23,8 @@ converter = None  #DocumentConverter
 #converter:DocumentConverter.converter = None
 
 #@spaces.GPU
+duration = 60*config_load_models.pdf_files_count if config_load_models.pdf_files_count>=10 else 360  ## sec
+@spaces.GPU(duration=duration)   ## HF Spaces GPU support
 # Define docextractor in the pool as serialised object and passed to each worker process.
 # Note: DocumentConverter must be "picklable".
 def init_worker(#self,
@@ -180,7 +182,7 @@ class PdfToMarkdownConverter:
         return {"file": md_file.name, "images": images_count, "filepath": md_file, "image_path": image_path}  ####SMY should be Dict[str, int, str]. Dicts are not necessarily ordered.
 
     #duration = 5.75 * pdf_files_count if pdf_files_count>=2 else 7
-    duration = 20*config_load_models.pdf_files_count if config_load_models.pdf_files_count>=10 else 180  ## sec
+    duration = 60*config_load_models.pdf_files_count if config_load_models.pdf_files_count>=10 else 360  ## sec
     @spaces.GPU(duration=duration)   ## HF Spaces GPU support
     #def convert_files(src_path: str, output_dir: str, max_retries: int = 2) -> str:
     #def convert_files(self, src_path: str, output_dir_string: str = None, max_retries: int = 2, progress = gr.Progress()) -> Union[Dict, str]:  #str:    
