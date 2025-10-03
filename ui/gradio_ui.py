@@ -261,7 +261,8 @@ def convert_batch(
                     #progress((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]")
                     #progress2((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]")
                     #time.sleep(0.25)'''
-                @spaces.GPU(duration=3.75*len(pdf_files_count))   ## HF Spaces GPU support
+                duration = 5.75 * len(pdf_files_count) if len(pdf_files_count)>=2 else 7
+                @spaces.GPU(duration=duration)   ## HF Spaces GPU support
                 def get_results_pool_map(pdf_files, pdf_files_count, progress2=gr.Progress()):
                     #Use progress.tqdm to integrate with the executor map
                     #results = pool.map(pdf2md_converter.convert_files, pdf_files)  ##SMY iterables  #max_retries #output_dir_string)
