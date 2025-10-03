@@ -261,7 +261,7 @@ def convert_batch(
                     #progress((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]")
                     #progress2((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]")
                     #time.sleep(0.25)'''
-                duration = 5.75 * len(pdf_files_count) if len(pdf_files_count)>=2 else 7
+                duration = 5.75 * pdf_files_count if pdf_files_count>=2 else 7
                 @spaces.GPU(duration=duration)   ## HF Spaces GPU support
                 def get_results_pool_map(pdf_files, pdf_files_count, progress2=gr.Progress()):
                     #Use progress.tqdm to integrate with the executor map
