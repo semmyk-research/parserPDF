@@ -59,7 +59,7 @@ except Exception as exc:
 # pool executor to convert files called by Gradio
 ##SMY: TODO: future: refactor to gradio_process.py and 
 ## pull options to cli-options{"output_format":, "output_dir_string":, "use_llm":, "page_range":, "force_ocr":, "debug":, "strip_existing_ocr":, "disable_ocr_math""}
-@spaces.GPU
+#@spaces.GPU
 def convert_batch(
     pdf_files, #: list[str],
     pdf_files_count: int,
@@ -261,6 +261,7 @@ def convert_batch(
                     #progress((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]")
                     #progress2((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]")
                     #time.sleep(0.25)'''
+                @spaces.GPU   ## HF Spaces GPU support
                 def get_results_pool_map(pdf_files, pdf_files_count, progress2=gr.Progress()):
                     #Use progress.tqdm to integrate with the executor map
                     #results = pool.map(pdf2md_converter.convert_files, pdf_files)  ##SMY iterables  #max_retries #output_dir_string)
@@ -683,7 +684,7 @@ def build_interface() -> gr.Blocks:
                 with gr.Column():
                     page_range_tb = gr.Textbox(
                         label="Page Range (Optional)",
-                        value=0,
+                        value="0-0",
                         placeholder="Example: 0,1-5,8,12-15 ~(default: first page)",
                         lines=1,
                         max_lines=1,

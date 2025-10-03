@@ -168,6 +168,8 @@ class DocumentConverter:
                 #config=config_parser.generate_config_dict(),
                 #llm_service=self.llm_service  ##SMY expecting str but self.llm_service, is service object marker.services of type BaseServices
                 llm_service=llm_service_str,    ##resolve
+                processor_list=config_parser.get_processors(),
+                renderer=config_parser.get_renderer(),
                 )
             
             logger.log(level=20, msg="✔️ MarkerConverter instantiated successfully:", extra={"converter.config": str(self.converter.config.get("openai_base_url")), "use_llm":self.converter.use_llm})

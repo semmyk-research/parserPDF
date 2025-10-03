@@ -6,8 +6,8 @@ gradio>=5.44.0              # gradio[mcp]>=5.44.0
 
 ## HF Spaces recommendation: https://huggingface.co/docs/hub/spaces-gpus#frameworks
 --extra-index-url https://download.pytorch.org/whl/cu113
-torch
-#torch>=2.7.1                # ZeroGPU support
+torch==2.7.0                # torch
+#torch>=2.7.0               # ZeroGPU support
 spaces>=0.42.1              # HF Spaces (default on HF Spaces
 #huggingface_hub>=0.34.0    # HuggingFace integration
 
