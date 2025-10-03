@@ -21,6 +21,7 @@ docconverter: DocumentConverter = None
 converter = None  #DocumentConverter
 #converter:DocumentConverter.converter = None
 
+@spaces.GPU
 # Define docextractor in the pool as serialised object and passed to each worker process.
 # Note: DocumentConverter must be "picklable".
 def init_worker(#self,
@@ -112,8 +113,9 @@ class PdfToMarkdownConverter:
 
     
     #duration = 5.75 * pdf_files_count if pdf_files_count>=2 else 7
-    duration = 10
-    @spaces.GPU(duration=duration)   ## HF Spaces GPU support
+    #duration = 10
+    #@spaces.GPU(duration=duration)   ## HF Spaces GPU support
+    @spaces.GPU
     ## moved from extraction_converter ( to standalone extract_to_md)
     #def extract(self, src_path: str, output_dir: str) -> Dict[str, int, Union[str, Path]]:
     def extract(self, src_path: str, output_dir: str):   #Dict:
