@@ -252,7 +252,7 @@ def zip_processed_files(root_dir: str, file_paths: list[str], tz_hours=None, dat
     """
 
     import zipfile
-    from file_handler import file_utils
+    from utils import file_utils
     from utils import utils
 
     root_path = Path(root_dir)
@@ -373,6 +373,40 @@ def process_dicts_data(data:Union[dict, list[dict]]):
     
     return formatted_string
 
+def accumulate_files(uploaded_files, current_state):
+    """
+    Accumulates newly uploaded files with the existing state.
+    """
+
+    from globals import config_load
+    import gradio as gr 
+    # Initialize state if it's the first run
+    if current_state is None:
+        current_state = []
+    
+    # If no files were uploaded in this interaction, return the current state unchanged
+    if not uploaded_files:
+        return current_state, f"No new files uploaded. Still tracking {len(current_state)} file(s)."
+    
+    # Get the temporary paths of the newly uploaded files
+    # call is_file_with_extension to check if pathlib.Path object is a file and has a non-empty extension
+    #new_file_paths = [f.name for f in uploaded_files if is_file_with_extension(Path(f.name))]  #Path(f.name) and Path(f.name).is_file() and bool(Path(f.name).suffix)]  #Path(f.name).suffix.lower() !=""]
+    new_file_paths = [f.name for f in uploaded_files if is_file_with_extension(Path(f.name)) and f.name.endswith(config_load.file_types_tuple)] 
+    
+    # Concatenate the new files with the existing ones in the state
+    updated_files = current_state + new_file_paths
+    updated_filenames = [Path(f).name for f in updated_files]
+
+    updated_files_count = len(updated_files)
+    
+    # Return the updated state and a message to the user
+    #file_info = "\n".join(updated_files)
+    filename_info = "\n".join(updated_filenames)
+    #message = f"Accumulated {len(updated_files)} file(s) total.\n\nAll file paths:\n{file_info}"
+    message = f"Accumulated {len(updated_files)} file(s) total: \n{filename_info}"
+    
+    return updated_files, updated_files_count, message, gr.update(interactive=True), gr.update(interactive=True)
+
 ##NB: Python =>3.10, X | Y equiv to the type checker as Union[X, Y]
 def collect_pdf_html_paths(root: Union[str, Path]) -> List[Path]:
     """
@@ -425,6 +459,7 @@ def write_markdown(
     src_path: Union[str, Path],
     output_dir: Union[str, Path],
     rendered: Any,
+    output_format: str,
 ) -> Path:
     
     """
@@ -468,7 +503,15 @@ def write_markdown(
     #out_dir = Path(output_dir)
     #out_dir.mkdir(parents=True, exist_ok=True)
 
-    md_name = f"{src.stem}.md"
+    #md_name = f"{src.stem}.md"
+    output_handler = {
+        "markdown": "md",
+        "json": "json",
+        "html": "html",
+                }
+    output_ext = output_handler.get(output_format, "md")
+    
+    md_name = f"{src.stem}.{output_ext}"
     if isinstance(output_dir, Path):
         md_path = output_dir / f"{src.stem}" / md_name
     else:
@@ -484,10 +527,12 @@ def write_markdown(
     md_path.parent.chmod(0)
 
     try:
-        markdown_text = getattr(rendered, "markdown")  ##SMY: get extracted markdown
+        #markdown_text = getattr(rendered, "markdown")  ##SMY: get extracted markdown
+        markdown_text = getattr(rendered, output_format)
     except AttributeError as exc:  # pragma: no cover
         raise AttributeError(
-            "Extractor Rendered object must have a 'markdown' attribute"
+            #"Extractor Rendered object must have a 'markdown' attribute"
+            f"Extractor Rendered object must have a '{output_format}' attribute"
         ) from exc
 
     with md_path.open(mode="w", encoding="utf-8") as md_f:
@@ -562,58 +607,3 @@ def dump_images(
     return images_count, img_path_list        ##SMY: return number of images and path
     #return images.items().count
     #return len(images)
-
-# Dummp Markdown extracted images  ##SMY: Marked for deprecated
-'''
-def dump_images(
-    src_path: Union[str, Path],
-    output_dir: Union[str, Path],
-    rendered: Any,
-) -> int:
-    
-    """
-    Dump the images  of the Markdown representation of a source file to an output directory.
-
-    Parameters
-    ----------
-    src_path : str | Path
-        Path to the original source file. Only its base name is used for naming
-        the resulting Markdown file.
-    output_dir : str | Path
-        Directory where the Markdown file will be written. It was created if it does not
-        exist with create_outputdir().
-    rendered : object
-        Object that provides a ``markdown`` attribute containing the text to write.
-
-    Returns
-    -------
-    Number of images dumped from the  Markdown file.
-    """
-
-    try:
-        images: Mapping[str, bytes] = getattr(rendered, "images")
-    except TypeError as exc:  # pragma: no cover
-        raise AttributeError(
-            "Extracted images from rendered.images must be a mapping of str -> bytes"
-        ) from exc
-
-    images_count = 0
-    ##SMY: See marker.output.save_output()  : https://github.com/datalab-to/marker/blob/master/marker/output.py
-    #for img_name, img_bytes in images.items():
-    for img_name, img in images.items():
-        # Resolve the full path and make sure any sub‑directories exist.
-        img_path = Path(output_dir) / src_path / img_name    ##SMY: image files  ##concatenate Path + str
-        img_path.parent.mkdir(parents=True, exist_ok=True)
-
-        #'' '
-        #with img_path.open("wb") as fp:
-        #    fp.write(img_bytes)    ##SMY: write images to markdown folder
-        #images_count += 1
-        #'' '
-        img.save(img_path)    ##SMY: save images (of type PIL.Image.Image) to markdown folder
-        images_count += 1
-
-    return images_count        ##SMY: return number of images
-    #return images.items().count
-    #return len(images)
-'''

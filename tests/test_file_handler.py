@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 from unittest.mock import patch
 
-from file_handler.file_utils import (
+from utils.file_utils import (
     collect_pdf_paths, collect_html_paths, collect_markdown_paths,
     process_dicts_data, create_outputdir
 )

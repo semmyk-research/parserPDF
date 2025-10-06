@@ -28,13 +28,10 @@ DESCRIPTION_MD = (
     "Upload Markdown/LaTeX files and generate a polished PDF."
 )
 
-# File types
-file_types_list  = []
-file_types_tuple = (".pdf", ".html", ".docx", ".doc")
-#file_types_list = list[file_types_tuple]
-#file_types_list.extend(file_types_tuple)
 
-
+##SMY: See config.ini
+##===================
+'''
 # Conversion defaults
 DEFAULT_MARKER_OPTIONS = {
     "include_images": True,
@@ -86,4 +83,5 @@ hf_client      = None
 artifact_dict  = None
 pdf_converter  = None
 html_converter = None
+'''
 

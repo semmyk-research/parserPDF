@@ -5,97 +5,27 @@ from typing import List, Dict, Union, Optional
 import traceback  ## Extract, format and print information about Python stack traces.
 import time
 
+from gradio import Progress as grP
 import spaces
-from globals import config_load_models
+from globals import config_load_models, config_load
 
 from converters.extraction_converter import DocumentConverter  #, DocumentExtractor #as docextractor #ExtractionConverter  #get_extraction_converter  ## SMY: should disuse
-from file_handler.file_utils import write_markdown, dump_images, collect_pdf_paths, collect_html_paths, collect_markdown_paths, create_outputdir
+from utils.file_utils import write_markdown, dump_images, collect_pdf_paths, collect_html_paths, collect_markdown_paths, create_outputdir
 
-from utils import config
+#from utils import config
 from utils.lib_loader import set_weasyprint_library
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 # Define global variables   ##SMY: TODO: consider moving to Globals sigleton constructor
-docconverter: DocumentConverter = None
-converter = None  #DocumentConverter
-#converter:DocumentConverter.converter = None
-
-#@spaces.GPU
-duration = 60*config_load_models.pdf_files_count if config_load_models.pdf_files_count>=10 else 360  ## sec
-@spaces.GPU(duration=duration)   ## HF Spaces GPU support
+## moved to class
+#docconverter: DocumentConverter = None
+#converter = None  #DocumentConverter
 # Define docextractor in the pool as serialised object and passed to each worker process.
 # Note: DocumentConverter must be "picklable".
-def init_worker(#self,
-    provider: str,
-    model_id: str,
-    #base_url,
-    hf_provider: str,
-    endpoint_url: str,
-    backend_choice: str,
-    system_message: str,
-    max_tokens: int,
-    temperature: float,
-    top_p: float,
-    stream: bool,
-    api_token: str,
-    openai_base_url: str,  #: str = "https://router.huggingface.co/v1",
-    openai_image_format: str,  #: str | None = "webp",
-    max_workers: int,
-    max_retries: int,  #: int | None = 2,
-    output_format: str,  #: str = "markdown",
-    output_dir: str,  #: Union | None = "output_dir",
-    use_llm: bool,  #: bool | None = False,
-    force_ocr: bool,
-    page_range: str,  #: str | None = None
-    ):
-    #'''
-    """ 
-    instantiate DocumentConverter/DocumentExtractor for use in each pool worker
-    Args:
 
-    """
-
-    ## moved to class
-    #    Initialise the global `converter` in each worker
-    # Define global variables
-    global docconverter
-    global converter
-
-    #'''
-    # 1) Instantiate the DocumentConverter
-    logger.log(level=20, msg="initialising docconverter:", extra={"model_id": model_id, "hf_provider": hf_provider})  ##debug
-
-    try:
-        docconverter = DocumentConverter(
-            model_id,  #: str,
-            hf_provider,  #: str,
-            temperature,  #: float,
-            top_p,  #: float,
-            api_token,  #: str,
-            openai_base_url,  #: str = "https://router.huggingface.co/v1",
-            openai_image_format,  #: str | None = "webp",
-            max_workers,  #: int  | None = 1,
-            max_retries,  #: int | None = 2,
-            output_format,  #: str = "markdown",
-            output_dir,  #: Union | None = "output_dir",
-            use_llm,  #: bool | None = False,
-            force_ocr,
-            page_range,  #: str | None = None
-        )
-        logger.log(level=20, msg="✔️ docextractor initialised:", extra={"docconverter model_id": docconverter.converter.config.get("openai_model"), "docconverter use_llm": docconverter.converter.use_llm, "docconverter output_dir": docconverter.output_dir})
-    except Exception as exc:
-        #logger.error(f"Failed to initialise DocumentConverter: {exc}")  #debug
-        tb = traceback.format_exc()
-        logger.exception(f"init_worker: Error initialising DocumentConverter → {exc}\n{tb}", exc_info=True)
-        return f"✗ init_worker: error initialising DocumentConverter → {exc}\n{tb}"
-    
-    #docconverter = docconverter
-    converter = docconverter.converter
-    #self.llm_service = docconverter.llm_service  ##duplicate?
-    #self.model_id = model_id   ##duplicate?
-    #'''
+#def init_worker(#self, ...
 
 class PdfToMarkdownConverter:
     """
@@ -106,22 +36,90 @@ class PdfToMarkdownConverter:
     def __init__(self, options: Dict | None = None): #extractor: DocumentExtractor, options: Dict | None = None):
         self.options = options or {}    ##SMY: TOBE implemented - bring all Marker's options
         self.output_dir_string = ''
-        self.output_dir = self.output_dir_string  ## placeholder
-        #self.OUTPUT_DIR = config.OUTPUT_DIR     ##flag unused
-        #self.MAX_RETRIES = config.MAX_RETRIES   ##flag unused
-        #self.docconverter = None  #DocumentConverter
-        #self.converter = self.docconverter.converter #None 
-
-    # This global will be set (re-initialised) in each worker after init_worker runs
-
+        self.output_dir = ''   #self.output_dir_string  ## placeholder
+        self.docconverter = None  #DocumentConverter
+        self.converter = None  #self.docconverter.converter #None 
     
-    #duration = 5.75 * pdf_files_count if pdf_files_count>=2 else 7
-    #duration = 10
-    #@spaces.GPU(duration=duration)   ## HF Spaces GPU support
-    #@spaces.GPU
-    ## moved from extraction_converter ( to standalone extract_to_md)
+    def init_docconverter(self, output_dir: Union[str, Path] = config_load.output_dir, progress3=grP(track_tqdm=True)):
+        #'''
+        """ 
+        instantiate DocumentConverter/DocumentExtractor for use
+        Args:
+            ##TODO
+        """
+        
+        provider: str = config_load.provider
+        model_id: str = config_load.model_id
+        #base_url,
+        hf_provider: str = config_load.hf_provider
+        endpoint_url: str = config_load.endpoint
+        backend_choice: str = config_load.backend_choice
+        system_message: str = config_load.system_message
+        max_tokens: int = config_load.max_tokens
+        temperature: float = config_load.temperature
+        top_p: float = config_load.top_p
+        stream: bool = config_load.stream
+        api_token: str = config_load.api_token
+        openai_base_url: str = config_load.openai_base_url
+        openai_image_format: str = config_load.openai_image_format
+        max_workers: int = config_load.max_workers
+        max_retries: int = config_load.max_retries
+        debug: bool = config_load.debug
+        output_format: str = config_load.output_format
+        output_dir: Union[str, Path] = config_load.output_dir_string   #output_dir #
+        use_llm: bool = config_load.use_llm
+        force_ocr: bool = config_load.force_ocr
+        strip_existing_ocr: bool = config_load.strip_existing_ocr
+        disable_ocr_math: bool = config_load.disable_ocr_math
+        page_range: str = config_load.page_range
+        
+
+        # 1) Instantiate the DocumentConverter
+        logger.log(level=20, msg="initialising docconverter:", extra={"model_id": model_id, "hf_provider": hf_provider})  ##debug
+        progress3((0,1), desc=f"initialising docconverter: ...")
+        #progress2((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]")
+        time.sleep(0.75)  #.sleep(0.25)
+
+        try:
+            docconverter = DocumentConverter(
+                model_id,   #: str,
+                hf_provider,    #: str,
+                temperature,    #: float,
+                top_p,          #: float,
+                api_token,  #: str,
+                openai_base_url,    #: str = "https://router.huggingface.co/v1",
+                openai_image_format,    #: str | None = "webp",
+                max_workers,      #: int  | None = 1,
+                max_retries,      #: int | None = 2,
+                debug,                  #: bool = False
+                output_format,  #: str = "markdown",
+                output_dir,        #: Union | None = "output_dir",
+                use_llm,              #: bool | None = False,
+                force_ocr,          #: bool | None = False,
+                strip_existing_ocr, #bool = False,
+                disable_ocr_math,     #bool = False,
+                page_range,        #: str | None = None
+            )
+            logger.log(level=20, msg="✔️ docextractor initialised:", extra={"docconverter model_id": docconverter.converter.config.get("openai_model"), "docconverter use_llm": docconverter.converter.use_llm, "docconverter output_dir": docconverter.output_dir})
+            progress3((1,1), desc=f"✔️ docextractor initialised:")
+            time.sleep(0.75)  #.sleep(0.25)
+        except Exception as exc:
+            #logger.error(f"Failed to initialise DocumentConverter: {exc}")  #debug
+            tb = traceback.format_exc()
+            logger.exception(f"init_worker: Error initialising DocumentConverter → {exc}\n{tb}", exc_info=True)
+            return f"✗ init_worker: error initialising DocumentConverter → {exc}\n{tb}"
+        
+        converter = docconverter.converter
+        self.docconverter = docconverter
+        self.converter = converter
+
+        #return converter
+    
+    #duration = 60*config_load_models.pdf_files_count if config_load_models.pdf_files_count>=10 else 360  ## sec
+    duration = 60*config_load_models.pdf_files_count if config_load_models.use_llm else 90  ## sec
+    @spaces.GPU(duration=duration)   ## HF Spaces GPU support
     #def extract(self, src_path: str, output_dir: str) -> Dict[str, int, Union[str, Path]]:
-    def extract(self, src_path: str, output_dir: str):   #Dict:
+    def extract(self, src_path: str, output_dir: str, progress4=grP()):   #Dict:
     #def extract(src_path: str, output_dir: str) -> Dict[str, int]:  #, extractor: DocumentExtractor) -> Dict[str, int]:
         """
         Convert one file (PDF/HTML) to Markdown + images.
@@ -140,13 +138,29 @@ class PdfToMarkdownConverter:
             logger.exception(f"Error loading weasyprint backend dependency → {exc}\n{tb}", exc_info=True)  # Log the full traceback
             raise RuntimeWarning(f"✗ error during loading weasyprint backend dependency → {exc}\n{tb}")
 
+        # Initialise Marker Converter
+        try:
+            if not self.converter:
+                self.init_docconverter(output_dir)
+
+            logger.log(level=20, msg=f"✓ Initialised Marker Converter")
+        except Exception as exc:
+            tb = traceback.format_exc()
+            logger.exception(f"Error during Marker Converter initialisation → {exc}\n{tb}", exc_info=True)  # Log the full traceback
+            
+            return f"✗ error during extraction → {exc}\n{tb}"
         
         # Run Marker conversion with LLM if use_llm is true
         try:
-            #rendered = self.docconverter.converter(src_path, use_llm=True)
+            progress4((0,1), desc=f"Extracting File: {Path(src_path).name}")
+            time.sleep(0.75)  #.sleep(0.25)
+            
             #rendered = self.docconverter.converter(src_path)
-            rendered = converter(src_path)
+            rendered = self.converter(src_path)
+
             logger.log(level=20, msg=f"✓ File extraction successful for {Path(src_path).name}")
+            progress4((1,1), desc=f"✓ File extraction successful for {Path(src_path).name}")
+            time.sleep(0.75)  #.sleep(0.25)
         except Exception as exc:
             tb = traceback.format_exc()
             logger.exception(f"Error during file extraction → {exc}\n{tb}", exc_info=True)  # Log the full traceback
@@ -154,15 +168,8 @@ class PdfToMarkdownConverter:
             return f"✗ error during extraction → {exc}\n{tb}"
 
         # Write Markdown file
-        '''
-        base = Path(str_path).stem   ## Get filename without extension
-        md_path = output_dir / f"{base}.md"  # Join output dir and new markdown file with the slash operator
-        
-        with open(md_path, "w", encoding="utf-8") as f:
-            f.write(rendered.markdown)
-        '''
         try:
-            md_file = write_markdown(src_path=src_path, output_dir=output_dir, rendered=rendered)
+            md_file = write_markdown(src_path=src_path, output_dir=output_dir, rendered=rendered, output_format=config_load.output_format)
             #debug md_file = "debug_md_file dummy name" ##debug
         except Exception as exc:
             tb = traceback.format_exc()
@@ -181,9 +188,9 @@ class PdfToMarkdownConverter:
         #return {"images": len(rendered.images), "file": md_file}  ##debug
         return {"file": md_file.name, "images": images_count, "filepath": md_file, "image_path": image_path}  ####SMY should be Dict[str, int, str]. Dicts are not necessarily ordered.
 
-    #duration = 5.75 * pdf_files_count if pdf_files_count>=2 else 7
-    duration = 60*config_load_models.pdf_files_count if config_load_models.pdf_files_count>=10 else 360  ## sec
-    @spaces.GPU(duration=duration)   ## HF Spaces GPU support
+    #duration = 60*config_load_models.pdf_files_count if config_load_models.pdf_files_count>=10 else 360  ## sec
+    #@spaces.GPU(duration=duration)   ## HF Spaces GPU support
+    
     #def convert_files(src_path: str, output_dir: str, max_retries: int = 2) -> str:
     #def convert_files(self, src_path: str, output_dir_string: str = None, max_retries: int = 2, progress = gr.Progress()) -> Union[Dict, str]:  #str:    
     def convert_files(self, src_path: str, max_retries: int = 2) -> Union[Dict, str]:
@@ -200,13 +207,15 @@ class PdfToMarkdownConverter:
             tb = traceback.format_exc()
             logger.exception("✗ error creating output_dir → {exc}\n{tb}", exc_info=True)
             return f"✗ error creating output_dir → {exc}\n{tb}"'''
-        output_dir = Path(self.output_dir)  ## takes the value from gradio_ui
+        #output_dir = Path(self.output_dir)  ## takes the value from gradio_ui
+        output_dir = Path(config_load.output_dir)  # Takes the value when output_dir is created in gradio_process
+        self.output_dir = output_dir
 
         try:
             #if Path(src_path).suffix.lower() not in {".pdf", ".html", ".htm"}:
             #if not Path(src_path).name.endswith(tuple({".pdf", ".html"})):  #,".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"})):
             #if not Path(src_path).name.endswith((".pdf", ".html", ".docx", ".doc")):  #,".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"})):            
-            if not Path(src_path).name.endswith(config.file_types_tuple):  #,".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"})):
+            if not Path(src_path).name.endswith(config_load.file_types_tuple):  #,".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"})):
                 logger.log(level=20, msg=f"skipped {Path(src_path).name}", exc_info=True)
                 return f"skipped {Path(src_path).name}"
         except Exception as exc:
