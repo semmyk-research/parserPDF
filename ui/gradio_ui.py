@@ -80,7 +80,7 @@ def build_interface() -> gr.Blocks:
                     label="Max Tokens",
                     minimum=1,
                     maximum=131172,  #65536,  #32768,  #16384,  #8192,
-                    value=1024,  #512,
+                    value=8192,  #1024,  #512,
                     step=1,
                 )
                 temperature_sl = gr.Slider(
@@ -140,11 +140,18 @@ def build_interface() -> gr.Blocks:
                     value="markdown",
                 )
             with gr.Row():
+                #pooling_cb = gr.Checkbox(
+                pooling_dd = gr.Dropdown(
+                    label="Pool: multiprocessing",
+                    info="Enable for high # of files [Beware!]",
+                    value="no_pooling",  #True,  #False
+                    choices=["no_pooling", "pooling", "as_completed"]
+                )
                 max_workers_sl = gr.Slider(
                     label="Max Worker",
                     minimum=1,
                     maximum=4,
-                    value=1,
+                    value=3,
                     step=1  
                 )
                 max_retries_sl = gr.Slider(
@@ -519,7 +526,8 @@ def build_interface() -> gr.Blocks:
             disable_ocr_math_cb,
             page_range_tb,
             weasyprint_dll_directories_tb,
-            tz_hours_num,   #state_tz_hours 
+            tz_hours_num,   #state_tz_hours
+            pooling_dd,
         ]
         
         ## debug

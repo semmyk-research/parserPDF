@@ -223,7 +223,8 @@ def check_create_file(filename: Union[str, Path]) -> Path:
     except PermissionError: ##[Errno 13] Permission denied: '/home/user/app/logs/app_logging_2025-09-18.log'
         warnings.warn("[Errno 13] Permission denied, possibly insufficient permission or Persistent Storage not enable: attempting chmod 0o2644")
         filename_path.touch(exist_ok=True, mode=0o2755)  # Creates an empty file if it doesn't exists
-        filename_path.chmod(0)
+        #filename_path.chmod(0)
+        filename_path.chmod(0o2755)
     
     return filename_path
 
@@ -524,7 +525,8 @@ def write_markdown(
     ##SMY: [resolved] Permission Errno13 - https://stackoverflow.com/a/57454275
     md_path.parent.mkdir(mode=0o2755, parents=True, exist_ok=True)  ##SMY: create nested md_path if not exists
     #md_path.parent.mkdir(parents=True, exist_ok=True)  ##SMY: md_path now resides in Temp
-    md_path.parent.chmod(0)
+    #md_path.parent.chmod(0)  ##resets permission (none): d--------- 2
+    md_path.parent.chmod(mode=0o2755)
 
     try:
         #markdown_text = getattr(rendered, "markdown")  ##SMY: get extracted markdown

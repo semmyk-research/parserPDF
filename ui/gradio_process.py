@@ -1,7 +1,9 @@
 # ui/gradio_process.py
 
+from re import Match
+from unittest import result
 import gradio as gr
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
 import time
@@ -65,8 +67,8 @@ def get_results_files_conversion(pdf_files, pdf_files_count, progress2=gr.Progre
     for i, pdf_file in enumerate(iterable=progress2.tqdm(
                 iterable=pdf_files,  #, max_retries), total=len(pdf_files)
                 desc=f"Processing file conversion ... pool.map",
-                total=pdf_files_count), 
-            start=1):
+                total=pdf_files_count)
+                ):
         result_interim = pdf2md_converter.convert_files(pdf_file)
 
         # Update the Gradio UI to improve user-friendly eXperience
@@ -76,6 +78,100 @@ def get_results_files_conversion(pdf_files, pdf_files_count, progress2=gr.Progre
         time.sleep(0.75)  #.sleep(0.25)
         
         results.append(result_interim)
+        
+    return results
+
+def get_results_files_conversion_with_pool(pdf_files, pdf_files_count, max_workers: int, progress2=gr.Progress(track_tqdm=True)):
+    #Use progress.tqdm to integrate with the executor map
+
+    results = []
+    try:
+        # Create a pool with init_worker initialiser
+        ##SMY: dropped ProcessPoolExecutor due to slow Marker conversion.Marker already leverage ThreadPoolExecutor and ProcessPoolExecutor
+        with ProcessPoolExecutor(
+            max_workers=max_workers,
+            ) as pool:
+    
+                logger.log(level=30, msg="Initialising ProcessPoolExecutor: pool:", extra={"pdf_files": pdf_files[:3], "files_len": len(pdf_files), "progress": str(progress2),}) 
+                progress2((10,16), desc=f"Starting ProcessPool queue: Processing Files ...")
+                time.sleep(0.25)
+
+                # Map the files (pdf_files) to the conversion function (pdf2md_converter.convert_file)
+                #try:
+                    #yield gr.update(interactive=True), f"ProcessPoolExecutor: Pooling file conversion ...", {"process": "Processing files ..."}, f"dummy_log.log"
+                #    progress((9,16), desc=f"ProcessPoolExecutor: Pooling file conversion ...")
+                #    time.sleep(0.25)
+                #    yield gr.update(interactive=False), f"ProcessPoolExecutor: Pooling file conversion ...", {"process": "Processing files ..."}, f"dummy_log.log"
+    
+                # Use progress.tqdm to integrate with the executor mapresults = pool.map(pdf2md_converter.convert_files, pdf_files)  ##SMY iterables  #max_retries #output_dir_string)
+                for i, result_interim in enumerate(progress2.tqdm(
+                    iterable=pool.map(pdf2md_converter.convert_files, pdf_files),  #, max_retries), total=len(pdf_files)
+                    desc="ProcessPoolExecutor: Pooling file conversion ...",
+                    total=pdf_files_count, unit="files")
+                    ):
+
+                        results.append(result_interim)
+        
+                        # Update the Gradio UI to improve user-friendly eXperience
+                        yield gr.update(interactive=True), f"ProcessPoolExecutor: Pooling file conversion result: {i} : [{str(result_interim)[:20]}]", {"process": "Processing files ..."}, f"dummy_log.log"
+                        #progress((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)[:20]}]")
+                        progress2((i, pdf_files_count), desc=f"ProcessPoolExecutor: Pooling file conversion result: {i} : [{str(result_interim)[:20]}]")
+                        time.sleep(0.25)
+    except Exception as exc:
+        # Raise the exception to stop the Gradio app: exception to halt execution
+        logger.exception("Error during pooling file conversion", exc_info=True)  # Log the full traceback
+        tbp = traceback.print_exc()  # Print the exception traceback
+        # Update the Gradio UI to improve user-friendly eXperience
+        yield gr.update(interactive=True), f"An error occurred during pool.map: {str(exc)}", {"Error":f"Error: {exc}\n{tbp}"}, f"dummy_log.log"  ## return the exception message
+        return [gr.update(interactive=True), f"An error occurred during pool.map: {str(exc)}", {"Error":f"Error: {exc}\n{tbp}"}, f"dummy_log.log"]  ## return the exception message
+        ##======
+        
+    return results
+
+def get_results_files_conversion_with_pool_ascomplete(pdf_files, pdf_files_count, max_workers: int, progress2=gr.Progress(track_tqdm=True)):
+    """
+        This function wraps the as_completed call to process results
+        as they become available.
+    """
+    #Use progress.tqdm to integrate with the executor map
+
+    results = []
+    try:
+        # Create a pool with init_worker initialiser
+        ##SMY: dropped ProcessPoolExecutor due to slow Marker conversion.Marker already leverage ThreadPoolExecutor and ProcessPoolExecutor
+        with ProcessPoolExecutor(
+            max_workers=max_workers,
+            ) as pool:
+    
+                logger.log(level=30, msg="Initialising ProcessPoolExecutor: pool:", extra={"pdf_files": pdf_files, "files_len": len(pdf_files), "progress": str(progress2)})  #pdf_files_count
+                progress2((10,16), desc=f"Starting ProcessPool queue: Processing Files ...")
+                time.sleep(0.25)
+
+                # Submit each task individually and collect the futures
+                futures = [pool.submit(pdf2md_converter.convert_files, file) for file in pdf_files]
+                
+                # Use progress.tqdm to integrate with the executor mapresults = pool.map(pdf2md_converter.convert_files, pdf_files)  ##SMY iterables  #max_retries #output_dir_string)
+                for i, future in enumerate(progress2.tqdm(
+                    iterable=as_completed(futures),  #pdf_files,
+                    desc="ProcessPoolExecutor: Pooling file conversion ...",
+                    total=pdf_files_count, unit="files")
+                    ):
+                        result_interim = future.result()
+                        results.append(result_interim)
+        
+                        # Update the Gradio UI to improve user-friendly eXperience
+                        yield gr.update(interactive=True), f"ProcessPoolExecutor: Pooling file conversion result: {i} : [{str(result_interim)[:20]}]", {"process": "Processing files ..."}, f"dummy_log.log"
+                        #progress((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)[:20]}]")
+                        progress2((i, pdf_files_count), desc=f"ProcessPoolExecutor: Pooling file conversion result: {i} : [{str(result_interim)[:20]}]")
+                        time.sleep(0.25)
+    except Exception as exc:
+        # Raise the exception to stop the Gradio app: exception to halt execution
+        logger.exception("Error during pooling file conversion", exc_info=True)  # Log the full traceback
+        tbp = traceback.print_exc()  # Print the exception traceback
+        # Update the Gradio UI to improve user-friendly eXperience
+        yield gr.update(interactive=True), f"An error occurred during pool.map: {str(exc)}", {"Error":f"Error: {exc}\n{tbp}"}, f"dummy_log.log"  ## return the exception message
+        return [gr.update(interactive=True), f"An error occurred during pool.map: {str(exc)}", {"Error":f"Error: {exc}\n{tbp}"}, f"dummy_log.log"]  ## return the exception message
+        ##======
         
     return results
 
@@ -115,6 +211,7 @@ def convert_batch(
     page_range: str = None,     #Optional[str] = None,
     weasyprint_dll_directories: str = None,     #weasyprint_libpath 
     tz_hours: str = None,
+    pooling: str = "no_pooling",   #bool = True,
     oauth_token: gr.OAuthToken | None=None,
     progress: gr.Progress = gr.Progress(track_tqdm=True),  #Progress tracker to keep tab on pool queue executor
     progress1: gr.Progress = gr.Progress(),
@@ -188,6 +285,7 @@ def convert_batch(
     weasyprint_dll_directories= weasyprint_dll_directories if weasyprint_dll_directories else None
     config_load_models.weasyprint_libpath = weasyprint_dll_directories  ## Assign user's weasyprint path to Global var
     config_load_models.pdf_files_count = pdf_files_count
+    #pooling = True   ##SMY: placeholder
     
     progress((3,16), desc=f"Retrieved configuration values")
     time.sleep(0.25)
@@ -227,6 +325,7 @@ def convert_batch(
     config_load.page_range = page_range
     #config_load.weasyprint_dll_directories: str = None,
     config_load.tz_hours = tz_hours
+    config_load.pooling = pooling   ## placeholder for ProcessPoolExecutor flag
    
     # 1. create output_dir
     try:
@@ -254,65 +353,32 @@ def convert_batch(
             yield gr.update(interactive=True), f"✗ An error occurred creating output_dir: {str(exc)}", {"Error":f"Error: {exc}"}, f"dummy_log.log"  ## return the exception message
             return f"An error occurred creating output_dir: {str(exc)}", f"Error: {exc}", f"Error: {exc}"  ## return the exception message
 
-    # 2. Process file conversion leveraging ProcessPoolExecutor for efficiency    
-    try:
-        results = []  ## Processed files result holder
-        logger.log(level=30, msg="Initialising Processing Files ...", extra={"pdf_files": pdf_files, "files_len": len(pdf_files), "model_id": model_id, "output_dir": output_dir_string})  #pdf_files_count
-        yield gr.update(interactive=False), f"Initialising Processing Files ...", {"process": "Processing files ..."}, f"dummy_log.log"
-        progress((7,16), desc=f"Initialising Processing Files ...")
-        time.sleep(0.25)
+    # 2. Process file conversion leveraging ProcessPoolExecutor for efficiency 
+    results = []  ## Processed files result holder
+    logger.log(level=30, msg="Initialising Processing Files ...", extra={"pdf_files": pdf_files, "files_len": len(pdf_files), "model_id": model_id, "output_dir": output_dir_string})  #pdf_files_count
+    yield gr.update(interactive=False), f"Initialising Processing Files ...", {"process": "Processing files ..."}, f"dummy_log.log"
+    progress((7,16), desc=f"Initialising Processing Files ...")
+    time.sleep(0.25)
 
-        # Create a pool with init_worker initialiser
-        ##SMY: dropped ProcessPoolExecutor due to slow Marker conversion.Marker already leverage ThreadPoolExecutor and ProcessPoolExecutor
-        '''with ProcessPoolExecutor(
-            max_workers=max_workers,
-            initializer=init_worker,
-            initargs=init_args
-        ) as pool:'''
+    try:
+        #yield gr.update(interactive=True), f"Pooling file conversion ...", {"process": "Processing files ..."}, f"dummy_log.log"
+        progress((8,16), desc=f"Pooling file conversion ...")
+        time.sleep(0.25)
+        yield gr.update(interactive=False), f"Pooling file conversion ...", {"process": "Processing files ..."}, f"dummy_log.log"
+        
+        ##SMY: Future: users choose sequential or pooling from Gradio ui
+        match pooling:
+            case "no_pooling":
+                results = get_results_files_conversion(pdf_files, pdf_files_count,progress)
+            case "pooling":
+                results = get_results_files_conversion_with_pool(pdf_files, pdf_files_count, max_workers, progress)
+            case "as_completed":
+                results = get_results_files_conversion_with_pool_ascomplete(pdf_files, pdf_files_count, max_workers, progress)
             
-        #logger.log(level=30, msg="Initialising ProcessPoolExecutor: pool:", extra={"pdf_files": pdf_files, "files_len": len(pdf_files), "model_id": model_id, "output_dir": output_dir_string})  #pdf_files_count
-        #progress((8,16), desc=f"Starting ProcessPool queue: Processing Files ...")
-        #time.sleep(0.25)
-  
-            # Map the files (pdf_files) to the conversion function (pdf2md_converter.convert_file)
-            # The 'docconverter' argument is implicitly handled by the initialiser
-            #futures = [pool.map(pdf2md_converter.convert_files, f) for f in pdf_files]
-            #logs = [f.result() for f in as_completed(futures)]
-            #futures = [pool.submit(pdf2md_converter.convert_files, file) for file in pdf_files]
-            #logs = [f.result() for f in futures]
-        try:
-            #yield gr.update(interactive=True), f"ProcessPoolExecutor: Pooling file conversion ...", {"process": "Processing files ..."}, f"dummy_log.log"
-            progress((9,16), desc=f"ProcessPoolExecutor: Pooling file conversion ...")
-            time.sleep(0.25)
-            yield gr.update(interactive=False), f"ProcessPoolExecutor: Pooling file conversion ...", {"process": "Processing files ..."}, f"dummy_log.log"
-            
-            '''# Use progress.tqdm to integrate with the executor map
-            #results = pool.map(pdf2md_converter.convert_files, pdf_files)  ##SMY iterables  #max_retries #output_dir_string)
-            for result_interim in progress.tqdm(
-                iterable=pool.map(pdf2md_converter.convert_files, pdf_files),  #, max_retries), total=len(pdf_files)
-                desc="ProcessPoolExecutor: Pooling file conversion ..."):
-                results.append(result_interim)
-                
-                # Update the Gradio UI to improve user-friendly eXperience
-                #yield gr.update(interactive=True), f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]", {"process": "Processing files ..."}, f"dummy_log.log"
-                #progress((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]")
-                #progress2((10,16), desc=f"ProcessPoolExecutor: Pooling file conversion result: [{str(result_interim)}[:20]]")
-                #time.sleep(0.25)'''
-            
-            results = get_results_files_conversion(pdf_files, pdf_files_count,progress)
-            
-            logger.log(level=30, msg="Got Results from files conversion: ", extra={"results": str(results)[:20]}) 
-            yield gr.update(interactive=True), f"Got Results from files conversion: [{str(results)[:20]}]", {"process": "Processing files ..."}, f"dummy_log.log"
-            progress((11,16), desc=f"Got Results from files conversion")
-            time.sleep(0.25)
-        except Exception as exc:
-            # Raise the exception to stop the Gradio app: exception to halt execution
-            logger.exception("Error during pooling file conversion", exc_info=True)  # Log the full traceback
-            tbp = traceback.print_exc()  # Print the exception traceback
-            # Update the Gradio UI to improve user-friendly eXperience
-            yield gr.update(interactive=True), f"An error occurred during pool.map: {str(exc)}", {"Error":f"Error: {exc}\n{tbp}"}, f"dummy_log.log"  ## return the exception message
-            return [gr.update(interactive=True), f"An error occurred during pool.map: {str(exc)}", {"Error":f"Error: {exc}\n{tbp}"}, f"dummy_log.log"]  ## return the exception message
-    
+        logger.log(level=30, msg="Got Results from files conversion: ", extra={"results": str(results)[:20]}) 
+        yield gr.update(interactive=True), f"Got Results from files conversion: [{str(results)[:20]}]", {"process": "Processing files ..."}, f"dummy_log.log"
+        progress((9,16), desc=f"Got Results from files conversion")
+        time.sleep(0.25)
     except Exception as exc:
         tb = traceback.format_exc()
         logger.exception(f"✗ Error during Files processing → {exc}\n{tb}" , exc_info=True)  # Log the full traceback
@@ -348,7 +414,7 @@ def convert_batch(
     except Exception as exc:
         tbp = traceback.print_exc()  # Print the exception traceback
         logger.exception("Error during processing results logs → {exc}\n{tbp}", exc_info=True)  # Log the full traceback
-        return [gr.update(interactive=True), f"An error occurred during processing results logs: {str(exc)}\n{tb}", {"Error":f"Error: {exc}"}, f"dummy_log.log"]  ## return the exception message
+        return [gr.update(interactive=True), f"An error occurred during processing results logs: {str(exc)}\n{tbp}", {"Error":f"Error: {exc}"}, f"dummy_log.log"]  ## return the exception message
         #yield gr.update(interactive=True), f"An error occurred during processing results logs: {str(exc)}\n{tb}", {"Error":f"Error: {exc}"}, f"dummy_log.log"  ## return the exception message
     
     

@@ -9,7 +9,8 @@ python_version: 3.12
 command: python main.py
 app_file: main.py
 hf_oauth: true
-oauth_scopes: [read-access]
+#oauth_scopes: [read-access]
+hf_oauth_scopes: [read-access, inference-api]
 license: mit
 pinned: true
 short_description: PDF & HTML parser to markdown

@@ -45,6 +45,7 @@ class Config:
         self.page_range: str = None
         #self.weasyprint_dll_directories: str = None,
         self.tz_hours: str = None
+        self.pooling: str = "no_pooling",  #bool = True  #False
         #oauth_token: gr.OAuthToken | None=None,
         #progress: gr.Progress = gr.Progress(track_tqdm=True),  #Progress tracker to keep tab on pool queue executor
 

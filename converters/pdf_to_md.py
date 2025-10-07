@@ -118,9 +118,9 @@ class PdfToMarkdownConverter:
     #duration = 60*config_load_models.pdf_files_count if config_load_models.pdf_files_count>=10 else 360  ## sec
     duration = 60*config_load_models.pdf_files_count if config_load_models.use_llm else 90  ## sec
     @spaces.GPU(duration=duration)   ## HF Spaces GPU support
-    #def extract(self, src_path: str, output_dir: str) -> Dict[str, int, Union[str, Path]]:
-    def extract(self, src_path: str, output_dir: str, progress4=grP()):   #Dict:
-    #def extract(src_path: str, output_dir: str) -> Dict[str, int]:  #, extractor: DocumentExtractor) -> Dict[str, int]:
+    def extract(self, src_path: str, output_dir: str):   ##-> Dict[str, int, Union[str, Path]]:
+    #def extract(self, src_path: str, output_dir: str, progress4=grP()):   #Dict:
+    ###def extract(src_path: str, output_dir: str) -> Dict[str, int]:  #, extractor: DocumentExtractor) -> Dict[str, int]:
         """
         Convert one file (PDF/HTML) to Markdown + images.
         Writes a `.md` file and any extracted images under `output_dir`.
@@ -152,15 +152,15 @@ class PdfToMarkdownConverter:
         
         # Run Marker conversion with LLM if use_llm is true
         try:
-            progress4((0,1), desc=f"Extracting File: {Path(src_path).name}")
-            time.sleep(0.75)  #.sleep(0.25)
+            #progress4((0,1), desc=f"Extracting File: {Path(src_path).name}")
+            #time.sleep(0.75)  #.sleep(0.25)
             
             #rendered = self.docconverter.converter(src_path)
             rendered = self.converter(src_path)
 
             logger.log(level=20, msg=f"✓ File extraction successful for {Path(src_path).name}")
-            progress4((1,1), desc=f"✓ File extraction successful for {Path(src_path).name}")
-            time.sleep(0.75)  #.sleep(0.25)
+            #progress4((1,1), desc=f"✓ File extraction successful for {Path(src_path).name}")
+            #time.sleep(0.75)  #.sleep(0.25)
         except Exception as exc:
             tb = traceback.format_exc()
             logger.exception(f"Error during file extraction → {exc}\n{tb}", exc_info=True)  # Log the full traceback
