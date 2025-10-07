@@ -78,6 +78,8 @@ requires-python: ">=3.12"
 ---
 
 # parserPDF
+[Pipeline for (in-progress) integrated RAG-KG platform]
+__________ 
 
 [![Gradio](https://img.shields.io/badge/Gradio-SDK-amber?logo=gradio)](https://www.gradio.app/)
 [![Python](https://img.shields.io/badge/Python->=3.12-blue?logo=python)](https://www.python.org/)
@@ -230,6 +232,11 @@ Test Structure
 - tests/test_llm.py: Tests LLM login, provider validation, Hugging Face/OpenAI client initialization, and API interactions.
 - tests/test_main_ui.py: Tests main application logic, UI building, batch conversion, file accumulation, and ProcessPoolExecutor integration.
 
+## Roadmap (No concrete timeline for now)
+1. Q4 2025: Document viewer pre-processing and processed document view post-processing
+2. Q4 2025: Integration with RAG-KG (knowledge graph)
+3. MCP server and Faster conversion rate
+4. Integrated research platform for document realist-based analysis
 
 ## License
 MIT License. See [LICENSE](LICENSE) for details.

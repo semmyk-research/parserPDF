@@ -358,19 +358,34 @@ def is_file_with_extension(path_obj: Path) -> bool:
 def process_dicts_data(data:Union[dict, list[dict]]):
     """ Returns formatted JSON string for a single dictionary or a list of dictionaries"""
     import json
-    from pathlib import WindowsPath
+    from pathlib import Path   #WindowsPath
     #from typing import dict, list
 
     # Serialise WindowsPath objects to strings using custom json.JSoNEncoder subclass
     class PathEncoder(json.JSONEncoder):
         def default(self, obj):
-            if isinstance(obj, WindowsPath):
+            #if isinstance(obj, WindowsPath):
+            if isinstance(obj, Path):    
                 return str(obj)
             # Let the base class default method raise the TypeError for other types
-            return json.JSONEncoder.default(self, obj)
+            #return json.JSONEncoder.default(self, obj)
+            return super().default(obj) # Use super().default() for better inheritance
 
     # Convert the list of dicts to a formatted JSON string
     formatted_string = json.dumps(data, indent=4, cls=PathEncoder)
+
+    '''
+    def path_to_str(obj):
+        """
+        A simple function to convert pathlib.Path objects to strings.
+        """
+        if isinstance(obj, Path):
+            return str(obj)
+        raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
+
+    # Convert the list of dicts to a formatted JSON string
+    formatted_string = json.dumps(data, indent=4, default=path_to_str)
+    '''
     
     return formatted_string
 
