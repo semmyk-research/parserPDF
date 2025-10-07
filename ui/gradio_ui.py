@@ -540,6 +540,7 @@ def build_interface() -> gr.Blocks:
                 fn=convert_batch,
                 inputs=inputs_arg,
                 outputs=[process_button, log_output, files_individual_JSON, files_individual_downloads],
+                show_progress_on=log_output
             )
         except Exception as exc:
             tb = traceback.format_exc()
